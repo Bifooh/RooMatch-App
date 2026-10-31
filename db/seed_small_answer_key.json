@@ -1,0 +1,196 @@
+{
+  "note": "FICTIONAL test data. Deliberate edge cases and the handling we expect. Use in tests; never show as real data.",
+  "seed": 2027,
+  "tenants": 32,
+  "edge_cases": [
+    {
+      "id": "E01",
+      "kind": "group_exceeds_capacity",
+      "description": "Five tenants all request each other but W-STD-2 holds 4 per apartment (placeholder capacity).",
+      "tenant_codes": [
+        "FAKE-00001",
+        "FAKE-00002",
+        "FAKE-00003",
+        "FAKE-00004",
+        "FAKE-00005"
+      ],
+      "apartments": [],
+      "expected_handling": "Cannot place all five together; flag to review queue, keep requests, do not silently split without explanation."
+    },
+    {
+      "id": "E02",
+      "kind": "animal_allergy_conflict",
+      "description": "Mutual roommate request, but one tenant has an animal and the other has an animal-allergy restriction.",
+      "tenant_codes": [
+        "FAKE-00006",
+        "FAKE-00007"
+      ],
+      "apartments": [],
+      "expected_handling": "Must not share an apartment; flag the request with the reason."
+    },
+    {
+      "id": "E03",
+      "kind": "misspelled_name",
+      "description": "Request text 'Quinn Jelyberry' is a misspelling of 'Quinn Jellyberry' (FAKE-00009); the reverse request is spelled correctly.",
+      "tenant_codes": [
+        "FAKE-00008",
+        "FAKE-00009"
+      ],
+      "apartments": [],
+      "expected_handling": "Suggest the likely match for staff confirmation; keep the original wording; do not auto-resolve without confidence."
+    },
+    {
+      "id": "E04",
+      "kind": "nonexistent_person",
+      "description": "Requests 'Rowan Glimmerpatch', who has no tenant record.",
+      "tenant_codes": [
+        "FAKE-00010"
+      ],
+      "apartments": [],
+      "expected_handling": "Unresolved; review queue with original wording."
+    },
+    {
+      "id": "E05",
+      "kind": "non_mutual_request",
+      "description": "First tenant requests the second; the second made no request.",
+      "tenant_codes": [
+        "FAKE-00011",
+        "FAKE-00012"
+      ],
+      "apartments": [],
+      "expected_handling": "Valid but weaker; attempt if it does not hurt others; show as non-mutual."
+    },
+    {
+      "id": "E06",
+      "kind": "ambiguous_name",
+      "description": "Request just says 'Jordan'; two tenants with first name Jordan share that floor plan.",
+      "tenant_codes": [
+        "FAKE-00013",
+        "FAKE-00014",
+        "FAKE-00015"
+      ],
+      "apartments": [],
+      "expected_handling": "Ambiguous; do not guess; review queue lists both candidates."
+    },
+    {
+      "id": "E07",
+      "kind": "cross_category_request",
+      "description": "A women's-plan tenant requests a men's-plan tenant by full name.",
+      "tenant_codes": [
+        "FAKE-00016",
+        "FAKE-00017"
+      ],
+      "apartments": [],
+      "expected_handling": "Ineligible to share; exclude with reason, keep in review queue."
+    },
+    {
+      "id": "E08",
+      "kind": "different_floor_plan_request",
+      "description": "Mutual request, but the two tenants contracted different floor plans.",
+      "tenant_codes": [
+        "FAKE-00018",
+        "FAKE-00019"
+      ],
+      "apartments": [],
+      "expected_handling": "Cannot share without a contract change; flag, do not change contracts automatically."
+    },
+    {
+      "id": "E09",
+      "kind": "renewal_stay",
+      "description": "Two renewing tenants live in 3616 and both want to stay.",
+      "tenant_codes": [
+        "FAKE-00020",
+        "FAKE-00021"
+      ],
+      "apartments": [
+        "3616"
+      ],
+      "expected_handling": "Prefer keeping both in their current apartment."
+    },
+    {
+      "id": "E10",
+      "kind": "renewal_move",
+      "description": "Renewing tenant in 5793 wants to move.",
+      "tenant_codes": [
+        "FAKE-00022"
+      ],
+      "apartments": [
+        "5793"
+      ],
+      "expected_handling": "Move to a different apartment of the same plan, preferring the same building and floor, then an adjacent floor."
+    },
+    {
+      "id": "E11",
+      "kind": "renewal_floor_plan_changed",
+      "description": "Renewing tenant lives in 7679 (M-STD-3) and wants to stay, but contracted M-FLAT-4.",
+      "tenant_codes": [
+        "FAKE-00023"
+      ],
+      "apartments": [
+        "7679"
+      ],
+      "expected_handling": "Staying is impossible under the contract; flag and propose M-FLAT-4 apartments on the same building floor (then adjacent floors) apartments."
+    },
+    {
+      "id": "E12",
+      "kind": "manager_lock_required_floor",
+      "description": "Staff-confirmed required_floor=1; manager pre-placed and locked in 5793.",
+      "tenant_codes": [
+        "FAKE-00024"
+      ],
+      "apartments": [
+        "5793"
+      ],
+      "expected_handling": "Preserve the lock; any move must be refused with the restriction shown."
+    },
+    {
+      "id": "E13",
+      "kind": "manager_lock_renewal",
+      "description": "Renewal stay in 5955, already locked by a manager.",
+      "tenant_codes": [
+        "FAKE-00025"
+      ],
+      "apartments": [
+        "5955"
+      ],
+      "expected_handling": "Preserve the lock."
+    },
+    {
+      "id": "E14",
+      "kind": "restriction_vs_request",
+      "description": "Second tenant requests the first, but staff confirmed they must not share an apartment.",
+      "tenant_codes": [
+        "FAKE-00026",
+        "FAKE-00027"
+      ],
+      "apartments": [],
+      "expected_handling": "Restriction wins; request excluded with reason."
+    },
+    {
+      "id": "E15",
+      "kind": "floor_plan_oversubscribed",
+      "description": "M-OTH-4: 6 contracts but only 1 apartment(s) x 4 = 4 places.",
+      "tenant_codes": [
+        "FAKE-00019",
+        "FAKE-00028",
+        "FAKE-00029",
+        "FAKE-00030",
+        "FAKE-00031",
+        "FAKE-00032"
+      ],
+      "apartments": [],
+      "expected_handling": "Some tenants cannot be placed; report shortfall honestly, never exceed capacity or move them to another plan silently."
+    },
+    {
+      "id": "E16",
+      "kind": "capacity_override",
+      "description": "Apartment 1375 has capacity_override=5 (W-STD-3 placeholder capacity 6).",
+      "tenant_codes": [],
+      "apartments": [
+        "1375"
+      ],
+      "expected_handling": "Validation must use the override, not the plan capacity."
+    }
+  ],
+  "random_noise": {}
+}

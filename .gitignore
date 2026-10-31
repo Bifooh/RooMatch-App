@@ -1,0 +1,25 @@
+# .NET build outputs
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Node / Vite
+node_modules/
+dist/
+*.local
+
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+secrets.json
+
+# Misc
+*.zip
+*.log
+.DS_Store
+.idea/
+.vscode/

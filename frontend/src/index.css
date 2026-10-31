@@ -1,0 +1,3 @@
+body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
+table { border-collapse: collapse; } td, th { padding: .3rem .8rem; border: 1px solid #ccc; text-align: left; }
+.ok { color: #176c2e; } .bad { color: #b00020; }
