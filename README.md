@@ -1,6 +1,6 @@
 # Lodge tenant-assignment MVP
 
-**All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are still placeholders.
+**All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are explicit per-plan values: "likely 2 per bedroom" per Samuel, confirmed only for M-FLAT-4.
 Real-data deployment needs its own security and operations review.
 
 This repo holds the MySQL schema and a reproducible fictional dataset (deliverable 1), plus the app skeleton:
@@ -12,8 +12,8 @@ Everything runs locally: no cloud services, telemetry or external APIs.
 | Path | What it is |
 |---|---|
 | `db/schema.sql` | MySQL 8 schema: 11 tables plus the `v_apartment_capacity` view. Re-running it drops and recreates the tables. |
-| `db/seed_small.sql` | 32 tenants and 18 apartments, seed 2027. It needs at least 32 tenants to fit every edge case. |
-| `db/seed_large.sql` | 1,100 tenants and 272 apartments, seed 2027. |
+| `db/seed_small.sql` | 32 tenants and 16 apartments (capacity 99), seed 2027. It needs at least 32 tenants to fit every edge case. |
+| `db/seed_large.sql` | 1,100 tenants and 202 apartments (capacity 1,253), seed 2027. |
 | `db/seed_*_answer_key.json` | The deliberate edge cases (tenant codes, apartments, expected handling) plus the random noise added to the large set. Use these in tests. |
 | `db/sanity_checks.sql` | Read-only checks: counts, demand vs capacity per floor plan, renewal plan mismatches, and requests with no exact name match. |
 | `tools/DataGen/` | The generator: a C# (.NET 8) console app with no NuGet dependencies. |
@@ -47,11 +47,12 @@ export PATH=$HOME/.dotnet:$PATH DOTNET_CLI_TELEMETRY_OPTOUT=1
 dotnet build Lodge.sln && dotnet test Lodge.sln
 cd backend/Lodge.Api && dotnet run --launch-profile http     # http://localhost:5080
 curl localhost:5080/api/health    # {"status":"ok","database":"lodge_small","serverVersion":"8.0.40"}
-curl localhost:5080/api/summary   # {"tenants":32,"apartments":18,"floorPlans":10}
+curl localhost:5080/api/summary   # {"tenants":32,"apartments":16,"floorPlans":10}
 ```
 
 `appsettings.Local.json` is git-ignored and overrides `appsettings*.json`. You can also use
-`ConnectionStrings__Lodge=...` as an environment variable. Without either, the Development default
+`ConnectionStrings__Lodge=...` as an environment variable; it takes precedence over the local file
+(for example, point it at `lodge_large`). Without either, the Development default
 (TCP `localhost:3306`, root, empty password) is used, which won't work against the socket-only dev server.
 
 ### 3. Frontend
@@ -75,6 +76,10 @@ npm run build    # type-check + production build into dist/
 - **Frontend:** stock `create-vite` react-ts template (Vite 8, React, oxlint), no UI library or state library yet.
 - **Tests:** xUnit project with one smoke test; it doesn't reference the API yet. The rules engine will likely be its own class library referenced by both API and tests.
 - **Telemetry:** set `DOTNET_CLI_TELEMETRY_OPTOUT=1` when running the .NET CLI.
+- **Capacity (2026-10-31):** Samuel said capacity is likely 2 per bedroom. Values stay explicit per plan (not a bedrooms x 2 formula), so a plan that differs can simply be edited. Only M-FLAT-4 is marked confirmed.
+- **Edge cases after the capacity change:** M-OTH-4 now holds 8, so oversubscribing it (E15) needs at least 9 contracts there. To keep the small set at exactly 32 tenants, E05 (non-mutual pair) and E14 (must-not-share pair) moved from M-STH-4 and M-FLAT-4 into M-OTH-4; their meaning is unchanged. E01 (5 in W-STD-2, cap 4) and E16 (override 5 < plan 6) still hold as-is.
+- **Spare capacity rule unchanged:** per plan, the apartments needed plus max(1, ceil(10%)). With the larger capacities this gives 13.9% overall spare in the large set (more than 10% because of per-plan rounding).
+- **Config precedence:** environment variables override `appsettings.Local.json`.
 - **Git author:** no git identity was configured, so the initial commit uses the local (repo-only) placeholder `Samuel Pereira <samuel@localhost>`. Fix with `git config user.email ...` and amend if wanted.
 
 ## Design rules the schema enforces
@@ -115,22 +120,46 @@ mysql -t lodge_mvp < db/sanity_checks.sql
 
 Verified on MySQL Community Server 8.0.40: the schema and both seeds load cleanly.
 
-## Floor plans (real names; capacities are PLACEHOLDERS)
+## Floor plans (real names; capacity 2 per bedroom, mostly unconfirmed)
 
-| Code | Plan (exact name) | Variant | Placeholder capacity |
-|---|---|---|---|
-| W-STD-2 | Women's - Standard. 2 Bedroom, 2 Bath | standard | 4 |
-| W-OVR-2 | Women's - Oversized. 2 Bedroom, 2 Bath | oversized | 4 |
-| W-STD-3 | Women's - Standard. 3 Bedroom, 3 Bath | standard | 6 |
-| W-FLAT-4 | Women's - Flat. 4 Bedroom, 4 Bath | flat | 4 |
-| W-STH-4 | Women's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 4 |
-| W-OTH-4 | Women's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 4 |
-| M-STD-3 | Men's - Standard. 3 Bedroom, 3 Bath | standard | 6 |
-| M-FLAT-4 | Men's - Flat. 4 Bedroom, 4 Bath | flat | 4 |
-| M-STH-4 | Men's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 4 |
-| M-OTH-4 | Men's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 4 |
+| Code | Plan (exact name) | Variant | Resident capacity | Status |
+|---|---|---|---|---|
+| W-STD-2 | Women's - Standard. 2 Bedroom, 2 Bath | standard | 4 | assumption |
+| W-OVR-2 | Women's - Oversized. 2 Bedroom, 2 Bath | oversized | 4 | assumption |
+| W-STD-3 | Women's - Standard. 3 Bedroom, 3 Bath | standard | 6 | assumption |
+| W-FLAT-4 | Women's - Flat. 4 Bedroom, 4 Bath | flat | 8 | assumption |
+| W-STH-4 | Women's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | assumption |
+| W-OTH-4 | Women's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | assumption |
+| M-STD-3 | Men's - Standard. 3 Bedroom, 3 Bath | standard | 6 | assumption |
+| M-FLAT-4 | Men's - Flat. 4 Bedroom, 4 Bath | flat | 8 | **confirmed by Samuel** |
+| M-STH-4 | Men's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | assumption |
+| M-OTH-4 | Men's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | assumption |
 
-The men's building has no 2-bedroom plans. Capacities are hard-coded per plan in `tools/DataGen/Program.cs`, never computed from bedrooms, and flagged `capacity_is_assumption = TRUE`. **Replace them with the real numbers.**
+The men's building has no 2-bedroom plans. Samuel said capacity is likely 2 residents per bedroom. Capacities are still
+hard-coded per plan in `tools/DataGen/Program.cs` and stored explicitly in `floor_plans.resident_capacity`; they are
+never computed from bedrooms. M-FLAT-4 has `capacity_is_assumption = FALSE`. The other nine have `TRUE`, with the note
+"likely 2 per bedroom per Samuel, unconfirmed". **Confirm them with Lodge staff.**
+
+### Apartment counts per plan (seed 2027)
+
+Each plan gets enough apartments for its demand plus a 10% margin (at least one spare apartment); M-OTH-4 is
+deliberately short (E15). Every plan has at least one apartment, so the small set has a lot of spare room.
+
+| Code | Small: apts / capacity / contracts | Large: apts / capacity / contracts |
+|---|---|---|
+| W-STD-2 | 3 / 12 / 5 | 37 / 148 / 129 |
+| W-OVR-2 | 2 / 8 / 2 | 18 / 72 / 62 |
+| W-STD-3 | 2 / 11 / 5 | 30 / 179 / 160 |
+| W-FLAT-4 | 1 / 8 / 0 | 14 / 112 / 89 |
+| W-STH-4 | 1 / 8 / 0 | 11 / 88 / 73 |
+| W-OTH-4 | 1 / 8 / 0 | 6 / 48 / 40 |
+| M-STD-3 | 2 / 12 / 6 | 41 / 246 / 217 |
+| M-FLAT-4 | 2 / 16 / 4 | 19 / 152 / 130 |
+| M-STH-4 | 1 / 8 / 0 | 16 / 128 / 109 |
+| M-OTH-4 | 1 / 8 / 10 | 10 / 80 / 91 |
+| **Total** | **16 / 99 / 32** | **202 / 1,253 / 1,100** (13.9% spare) |
+
+W-STD-3 capacity is one less than apartments x 6 because of the E16 override.
 
 ## Deliberate edge cases (the same set in small and large)
 
@@ -140,7 +169,7 @@ The men's building has no 2-bedroom plans. Capacities are hard-coded per plan in
 | E02 | A mutual request where one tenant has an animal and the other has an animal-allergy restriction (M-STD-3). |
 | E03 | A misspelled roommate name (W-STD-3; the reverse request is spelled correctly). |
 | E04 | A request naming a person who doesn't exist ("Rowan Glimmerpatch"). |
-| E05 | A non-mutual request (M-STH-4). |
+| E05 | A non-mutual request (M-OTH-4; was M-STH-4, moved so E15 fits in 32 tenants). |
 | E06 | An ambiguous request ("Jordan") with two Jordans in M-FLAT-4. |
 | E07 | A cross-category request: a W-STD-3 tenant names an M-STD-3 tenant (different building). |
 | E08 | A mutual request between M-STD-3 and M-OTH-4 (different contracted plans). |
@@ -149,9 +178,9 @@ The men's building has no 2-bedroom plans. Capacities are hard-coded per plan in
 | E11 | A renewing tenant who wants to stay, but lives in M-STD-3 and contracted M-FLAT-4. |
 | E12 | A staff-confirmed `required_floor = 1`, with a manager-locked pre-placement on floor 1. |
 | E13 | A manager-locked renewal stay (W-OVR-2). |
-| E14 | A staff-confirmed `must_not_share_with` pair in M-FLAT-4, where one of them requested the other. |
-| E15 | One oversubscribed plan, **M-OTH-4**: 6 contracts for 4 places in small, 87 for 80 in large. Total capacity is still enough overall (79 for 32 tenants in small, 1,229 for 1,100 in large). |
-| E16 | One W-STD-3 apartment with `capacity_override = 5` (placeholder plan capacity 6). |
+| E14 | A staff-confirmed `must_not_share_with` pair in M-OTH-4 (was M-FLAT-4, moved for the same reason), where one of them requested the other. |
+| E15 | One oversubscribed plan, **M-OTH-4**: 10 contracts for 8 places (1 apartment) in small, 91 for 80 (10 apartments) in large. Total capacity is still enough overall (99 for 32 tenants in small, 1,253 for 1,100 in large). |
+| E16 | One W-STD-3 apartment with `capacity_override = 5` (assumed plan capacity 6). |
 
 The 2 locked assignments live in draft 1, "Manager pre-placements (fictional)".
 
@@ -166,7 +195,7 @@ The **small** set has no random animals or allergies, so every conflict in it is
 
 ## ASSUMPTIONS to confirm with Lodge staff
 
-1. **Resident capacity per plan is unknown.** The placeholders are listed in the table above.
+1. **Resident capacity is likely 2 per bedroom (per Samuel), confirmed only for M-FLAT-4 (8).** The other nine plan capacities in the table above are unconfirmed.
 2. **Housing category (women or men) is on the floor plan,** and each category has its own building. A tenant's eligibility comes from their contracted plan.
 3. A tenant has exactly one contract per term.
 4. "Current apartment" for a renewal means the apartment they live in during the previous term.

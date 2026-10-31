@@ -25,7 +25,7 @@ sealed class Rng(ulong seed)
     public void Shuffle<T>(IList<T> xs) { for (int i = xs.Count - 1; i > 0; i--) { int j = Next(i + 1); (xs[i], xs[j]) = (xs[j], xs[i]); } }
 }
 
-record FloorPlan(int Id, string Code, string Name, string Variant, int Bedrooms, decimal Bathrooms, string Category, int Capacity, string Notes);
+record FloorPlan(int Id, string Code, string Name, string Variant, int Bedrooms, decimal Bathrooms, string Category, int Capacity, bool CapacityIsAssumption, string Notes);
 class Apartment { public int Id; public string Number = ""; public int PlanId; public string Building = ""; public int Floor; public int? CapOverride; public string? OverrideReason; }
 class Tenant { public int Id; public string Code = ""; public string First = ""; public string Last = ""; public string Full => $"{First} {Last}"; }
 class Contract { public int Id; public int TenantId; public int PlanId; public bool Renewing; public int? CurrentAptId; public string? Stay; public bool IsEdge; }
@@ -100,33 +100,35 @@ static class Program
     static void Generate(int n)
     {
         // Floor plans: REAL Lodge plan names/bed/bath (from the Lodge application form).
-        // resident_capacity values are PLACEHOLDER ASSUMPTIONS (real numbers unknown); they are set per plan
-        // here on purpose and are never computed from bedrooms.
-        var defs = new (string Code, string Name, string Variant, int Bed, decimal Bath, string Cat, int Cap)[] {
-            ("W-STD-2",  "Women's - Standard. 2 Bedroom, 2 Bath",          "standard",           2, 2.0m, "women", 4),
-            ("W-OVR-2",  "Women's - Oversized. 2 Bedroom, 2 Bath",         "oversized",          2, 2.0m, "women", 4),
-            ("W-STD-3",  "Women's - Standard. 3 Bedroom, 3 Bath",          "standard",           3, 3.0m, "women", 6),
-            ("W-FLAT-4", "Women's - Flat. 4 Bedroom, 4 Bath",              "flat",               4, 4.0m, "women", 4),
-            ("W-STH-4",  "Women's - Standard Townhome. 4 Bedroom, 4 Bath", "standard_townhome",  4, 4.0m, "women", 4),
-            ("W-OTH-4",  "Women's - Oversized Townhome. 4 Bedroom, 4 Bath","oversized_townhome", 4, 4.0m, "women", 4),
-            ("M-STD-3",  "Men's - Standard. 3 Bedroom, 3 Bath",            "standard",           3, 3.0m, "men",   6),
-            ("M-FLAT-4", "Men's - Flat. 4 Bedroom, 4 Bath",                "flat",               4, 4.0m, "men",   4),
-            ("M-STH-4",  "Men's - Standard Townhome. 4 Bedroom, 4 Bath",   "standard_townhome",  4, 4.0m, "men",   4),
-            ("M-OTH-4",  "Men's - Oversized Townhome. 4 Bedroom, 4 Bath",  "oversized_townhome", 4, 4.0m, "men",   4),
+        // resident_capacity is an explicit per-plan value, set here on purpose and NEVER computed from bedrooms.
+        // Samuel (2026-10-31): likely 2 residents per bedroom. Only M-FLAT-4 = 8 is confirmed; the rest are
+        // "likely 2 per bedroom per Samuel, unconfirmed" and stay flagged capacity_is_assumption = TRUE.
+        var defs = new (string Code, string Name, string Variant, int Bed, decimal Bath, string Cat, int Cap, bool Assumed)[] {
+            ("W-STD-2",  "Women's - Standard. 2 Bedroom, 2 Bath",          "standard",           2, 2.0m, "women", 4, true),
+            ("W-OVR-2",  "Women's - Oversized. 2 Bedroom, 2 Bath",         "oversized",          2, 2.0m, "women", 4, true),
+            ("W-STD-3",  "Women's - Standard. 3 Bedroom, 3 Bath",          "standard",           3, 3.0m, "women", 6, true),
+            ("W-FLAT-4", "Women's - Flat. 4 Bedroom, 4 Bath",              "flat",               4, 4.0m, "women", 8, true),
+            ("W-STH-4",  "Women's - Standard Townhome. 4 Bedroom, 4 Bath", "standard_townhome",  4, 4.0m, "women", 8, true),
+            ("W-OTH-4",  "Women's - Oversized Townhome. 4 Bedroom, 4 Bath","oversized_townhome", 4, 4.0m, "women", 8, true),
+            ("M-STD-3",  "Men's - Standard. 3 Bedroom, 3 Bath",            "standard",           3, 3.0m, "men",   6, true),
+            ("M-FLAT-4", "Men's - Flat. 4 Bedroom, 4 Bath",                "flat",               4, 4.0m, "men",   8, false),
+            ("M-STH-4",  "Men's - Standard Townhome. 4 Bedroom, 4 Bath",   "standard_townhome",  4, 4.0m, "men",   8, true),
+            ("M-OTH-4",  "Men's - Oversized Townhome. 4 Bedroom, 4 Bath",  "oversized_townhome", 4, 4.0m, "men",   8, true),
         };
         int pid = 1;
         foreach (var d in defs)
-            Plans.Add(new FloorPlan(pid++, d.Code, d.Name, d.Variant, d.Bed, d.Bath, d.Cat, d.Cap,
-                "Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm"));
+            Plans.Add(new FloorPlan(pid++, d.Code, d.Name, d.Variant, d.Bed, d.Bath, d.Cat, d.Cap, d.Assumed,
+                d.Assumed ? "Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed"
+                          : "Real plan name; resident_capacity confirmed by Samuel"));
         const string Oversubscribed = "M-OTH-4";
 
         // ---- edge-case tenants (identical structure for every size) ----
         var pend = new List<Action>(); // things that need apartments to exist first
 
-        // E1 roommate group larger than capacity (W-STD-2 placeholder capacity 4, group of 5, all mutual)
+        // E1 roommate group larger than capacity (W-STD-2 assumed capacity 4, group of 5, all mutual)
         var g = Enumerable.Range(0, 5).Select(_ => NewContract("W-STD-2", edge: true)).ToList();
         foreach (var a in g) foreach (var b in g) if (a != b) AddRequest(a, T(b).Full);
-        Edge("E01", "group_exceeds_capacity", "Five tenants all request each other but W-STD-2 holds 4 per apartment (placeholder capacity).", g,
+        Edge("E01", "group_exceeds_capacity", "Five tenants all request each other but W-STD-2 holds 4 per apartment (assumed capacity, likely 2 per bedroom).", g,
             "Cannot place all five together; flag to review queue, keep requests, do not silently split without explanation.");
 
         // E2 animal + allergy conflict inside a mutual request pair
@@ -150,7 +152,8 @@ static class Program
             "Unresolved; review queue with original wording.");
 
         // E5 non-mutual request
-        var f5 = NewContract("M-STH-4", edge: true); var g5 = NewContract("M-STH-4", edge: true);
+        // Lives in M-OTH-4 (was M-STH-4) so the small set can still oversubscribe M-OTH-4 (capacity 8) within 32 tenants.
+        var f5 = NewContract("M-OTH-4", edge: true); var g5 = NewContract("M-OTH-4", edge: true);
         AddRequest(f5, T(g5).Full);
         Edge("E05", "non_mutual_request", "First tenant requests the second; the second made no request.", new() { f5, g5 },
             "Valid but weaker; attempt if it does not hurt others; show as non-mutual.");
@@ -215,7 +218,8 @@ static class Program
         });
 
         // E14 staff-confirmed separation that conflicts with a roommate request
-        var r14 = NewContract("M-FLAT-4", edge: true); var s14 = NewContract("M-FLAT-4", edge: true);
+        // Lives in M-OTH-4 (was M-FLAT-4), same reason as E05.
+        var r14 = NewContract("M-OTH-4", edge: true); var s14 = NewContract("M-OTH-4", edge: true);
         AddRequest(s14, T(r14).Full);
         AddRestriction(r14, "must_not_share_with", other: T(s14).Id, desc: "Staff-confirmed: do not place with the named tenant (fictional)");
         AddRestriction(s14, "must_not_share_with", other: T(r14).Id, desc: "Staff-confirmed: do not place with the named tenant (fictional)");
@@ -297,7 +301,7 @@ static class Program
         Edge("E15", "floor_plan_oversubscribed",
             $"{Oversubscribed}: {demand[P(Oversubscribed).Id]} contracts but only {aptCount[P(Oversubscribed).Id]} apartment(s) x {cap} = {aptCount[P(Oversubscribed).Id] * cap} places.",
             Contracts.Where(c => c.PlanId == P(Oversubscribed).Id).ToList(), "Some tenants cannot be placed; report shortfall honestly, never exceed capacity or move them to another plan silently.");
-        Edge("E16", "capacity_override", $"Apartment {ovApt.Number} has capacity_override=5 (W-STD-3 placeholder capacity 6).", new(),
+        Edge("E16", "capacity_override", $"Apartment {ovApt.Number} has capacity_override=5 (W-STD-3 assumed plan capacity 6).", new(),
             "Validation must use the override, not the plan capacity.", ovApt);
 
         // ---- random renewals among filler tenants ----
@@ -426,7 +430,7 @@ static class Program
             "(1, 'F2026', 'Fall 2026 (fictional dates)', '2026-09-14', '2026-12-18')",
             "(2, 'W2027', 'Winter 2027 (fictional dates)', '2027-01-06', '2027-04-14')" });
         Insert(sb, "floor_plans", "floor_plan_id, code, name, variant, bedrooms, bathrooms, housing_category, resident_capacity, capacity_is_assumption, notes",
-            Plans.Select(p => $"({p.Id}, {S(p.Code)}, {S(p.Name)}, {S(p.Variant)}, {p.Bedrooms}, {p.Bathrooms.ToString("0.0", CultureInfo.InvariantCulture)}, {S(p.Category)}, {p.Capacity}, TRUE, {S(p.Notes)})"));
+            Plans.Select(p => $"({p.Id}, {S(p.Code)}, {S(p.Name)}, {S(p.Variant)}, {p.Bedrooms}, {p.Bathrooms.ToString("0.0", CultureInfo.InvariantCulture)}, {S(p.Category)}, {p.Capacity}, {B(p.CapacityIsAssumption)}, {S(p.Notes)})"));
         Insert(sb, "apartments", "apartment_id, apartment_number, floor_plan_id, building, floor, capacity_override, override_reason",
             Apts.Select(a => $"({a.Id}, {S(a.Number)}, {a.PlanId}, {S(a.Building)}, {a.Floor}, {I(a.CapOverride)}, {S(a.OverrideReason)})"));
         Insert(sb, "tenants", "tenant_id, tenant_code, first_name, last_name",

@@ -8,16 +8,16 @@ INSERT INTO terms (term_id, code, name, start_date, end_date) VALUES
   (2, 'W2027', 'Winter 2027 (fictional dates)', '2027-01-06', '2027-04-14');
 
 INSERT INTO floor_plans (floor_plan_id, code, name, variant, bedrooms, bathrooms, housing_category, resident_capacity, capacity_is_assumption, notes) VALUES
-  (1, 'W-STD-2', 'Women''s - Standard. 2 Bedroom, 2 Bath', 'standard', 2, 2.0, 'women', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (2, 'W-OVR-2', 'Women''s - Oversized. 2 Bedroom, 2 Bath', 'oversized', 2, 2.0, 'women', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (3, 'W-STD-3', 'Women''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'women', 6, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (4, 'W-FLAT-4', 'Women''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'women', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (5, 'W-STH-4', 'Women''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'women', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (6, 'W-OTH-4', 'Women''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'women', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (7, 'M-STD-3', 'Men''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'men', 6, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (8, 'M-FLAT-4', 'Men''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'men', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (9, 'M-STH-4', 'Men''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'men', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm'),
-  (10, 'M-OTH-4', 'Men''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'men', 4, TRUE, 'Real plan name; resident_capacity is a PLACEHOLDER ASSUMPTION until staff confirm');
+  (1, 'W-STD-2', 'Women''s - Standard. 2 Bedroom, 2 Bath', 'standard', 2, 2.0, 'women', 4, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (2, 'W-OVR-2', 'Women''s - Oversized. 2 Bedroom, 2 Bath', 'oversized', 2, 2.0, 'women', 4, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (3, 'W-STD-3', 'Women''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'women', 6, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (4, 'W-FLAT-4', 'Women''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'women', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (5, 'W-STH-4', 'Women''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'women', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (6, 'W-OTH-4', 'Women''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'women', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (7, 'M-STD-3', 'Men''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'men', 6, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (8, 'M-FLAT-4', 'Men''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity confirmed by Samuel'),
+  (9, 'M-STH-4', 'Men''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'men', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
+  (10, 'M-OTH-4', 'Men''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'men', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed');
 
 INSERT INTO apartments (apartment_id, apartment_number, floor_plan_id, building, floor, capacity_override, override_reason) VALUES
   (1, '5555', 1, 'Women''s', 1, NULL, NULL),
@@ -34,10 +34,8 @@ INSERT INTO apartments (apartment_id, apartment_number, floor_plan_id, building,
   (12, '7679', 7, 'Men''s', 2, NULL, NULL),
   (13, '4560', 8, 'Men''s', 1, NULL, NULL),
   (14, '2620', 8, 'Men''s', 2, NULL, NULL),
-  (15, '3059', 8, 'Men''s', 3, NULL, NULL),
-  (16, '7215', 9, 'Men''s', 1, NULL, NULL),
-  (17, '2244', 9, 'Men''s', 2, NULL, NULL),
-  (18, '3963', 10, 'Men''s', 1, NULL, NULL);
+  (15, '3059', 9, 'Men''s', 1, NULL, NULL),
+  (16, '7215', 10, 'Men''s', 1, NULL, NULL);
 
 INSERT INTO tenants (tenant_id, tenant_code, first_name, last_name) VALUES
   (1, 'FAKE-00001', 'Arlo', 'Pebblecrumb'),
@@ -84,8 +82,8 @@ INSERT INTO contracts (contract_id, tenant_id, term_id, floor_plan_id, tenant_ty
   (8, 8, 2, 3, 'new', NULL, NULL),
   (9, 9, 2, 3, 'new', NULL, NULL),
   (10, 10, 2, 2, 'new', NULL, NULL),
-  (11, 11, 2, 9, 'new', NULL, NULL),
-  (12, 12, 2, 9, 'new', NULL, NULL),
+  (11, 11, 2, 10, 'new', NULL, NULL),
+  (12, 12, 2, 10, 'new', NULL, NULL),
   (13, 13, 2, 8, 'new', NULL, NULL),
   (14, 14, 2, 8, 'new', NULL, NULL),
   (15, 15, 2, 8, 'new', NULL, NULL),
@@ -99,17 +97,17 @@ INSERT INTO contracts (contract_id, tenant_id, term_id, floor_plan_id, tenant_ty
   (23, 23, 2, 8, 'renewing', 12, 'stay'),
   (24, 24, 2, 7, 'new', NULL, NULL),
   (25, 25, 2, 2, 'renewing', 4, 'stay'),
-  (26, 26, 2, 8, 'new', NULL, NULL),
-  (27, 27, 2, 8, 'new', NULL, NULL),
+  (26, 26, 2, 10, 'new', NULL, NULL),
+  (27, 27, 2, 10, 'new', NULL, NULL),
   (28, 28, 2, 10, 'new', NULL, NULL),
-  (29, 29, 2, 10, 'renewing', 18, 'stay'),
+  (29, 29, 2, 10, 'renewing', 16, 'stay'),
   (30, 30, 2, 10, 'new', NULL, NULL),
   (31, 31, 2, 10, 'new', NULL, NULL),
   (32, 32, 2, 10, 'new', NULL, NULL);
 
 INSERT INTO preferences (contract_id, sleep_schedule, has_animal, animal_allergy_restriction, age, social_preference, major, academic_stage) VALUES
-  (1, 'early', FALSE, FALSE, 26, 'outgoing', NULL, NULL),
-  (2, 'typical', FALSE, FALSE, 21, NULL, 'Nursing', 'third_year'),
+  (1, 'unknown', FALSE, FALSE, 18, 'balanced', 'Undeclared', NULL),
+  (2, 'early', FALSE, FALSE, 19, 'outgoing', 'Nursing', 'third_year'),
   (3, 'typical', FALSE, FALSE, NULL, 'outgoing', 'Exercise Science', 'graduate'),
   (4, 'typical', FALSE, FALSE, 27, 'introverted', 'Software Engineering', NULL),
   (5, 'unknown', FALSE, FALSE, 27, NULL, NULL, NULL),
@@ -177,12 +175,24 @@ INSERT INTO roommate_requests (request_id, contract_id, raw_text, resolved_tenan
   (33, 27, 'Dakota Moontoes', NULL, 'pending', NULL),
   (34, 28, 'noel crumpetwick', NULL, 'pending', NULL),
   (35, 28, 'arlo pebbleworth', NULL, 'pending', NULL),
-  (36, 30, 'Dallin Glimmertooth', NULL, 'pending', NULL),
-  (37, 30, 'Pebbleworth, Arlo', NULL, 'pending', NULL),
-  (38, 31, 'Dallin Glimmertooth', NULL, 'pending', NULL),
-  (39, 31, 'noel crumpetwick', NULL, 'pending', NULL),
-  (40, 32, 'Noel Tumblefern', NULL, 'pending', NULL),
-  (41, 29, 'Dallin Marrowtoes', NULL, 'pending', NULL);
+  (36, 28, 'Dallin Marrowtoes', NULL, 'pending', NULL),
+  (37, 28, 'Tumblefern, Noel', NULL, 'pending', NULL),
+  (38, 30, 'Dallin Glimmertooth', NULL, 'pending', NULL),
+  (39, 30, 'arlo pebbleworth', NULL, 'pending', NULL),
+  (40, 30, 'Dallin Marrowtoes', NULL, 'pending', NULL),
+  (41, 30, 'Noel Tumblefern', NULL, 'pending', NULL),
+  (42, 31, 'Dallin Glimmertooth', NULL, 'pending', NULL),
+  (43, 31, 'Noel Crumpetwick', NULL, 'pending', NULL),
+  (44, 31, 'dallin marrowtoes', NULL, 'pending', NULL),
+  (45, 31, 'Tumblefern, Noel', NULL, 'pending', NULL),
+  (46, 32, 'Dallin Glimmertooth', NULL, 'pending', NULL),
+  (47, 32, 'Noel Crumpetwick', NULL, 'pending', NULL),
+  (48, 32, 'Pebbleworth, Arlo', NULL, 'pending', NULL),
+  (49, 32, 'Noel Tumblefern', NULL, 'pending', NULL),
+  (50, 29, 'Dallin Glimmertooth', NULL, 'pending', NULL),
+  (51, 29, 'Noel Crumpetwick', NULL, 'pending', NULL),
+  (52, 29, 'arlo pebbleworth', NULL, 'pending', NULL),
+  (53, 29, 'Dallin Marrowtoes', NULL, 'pending', NULL);
 
 INSERT INTO placement_restrictions (restriction_id, contract_id, restriction_type, apartment_id, other_tenant_id, value, description, confirmed_by, confirmed_at) VALUES
   (1, 26, 'must_not_share_with', NULL, 27, NULL, 'Staff-confirmed: do not place with the named tenant (fictional)', 'Fictional Staff Member', '2026-11-15 10:00:00'),

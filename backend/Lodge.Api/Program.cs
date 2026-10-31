@@ -3,7 +3,8 @@ using MySqlConnector;
 var builder = WebApplication.CreateBuilder(args);
 
 // Untracked local overrides (connection string with any dev password). See appsettings.Local.example.json.
-builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false)
+    .AddEnvironmentVariables(); // env vars (e.g. ConnectionStrings__Lodge) still win over the local file
 
 var connectionString = builder.Configuration.GetConnectionString("Lodge")
     ?? throw new InvalidOperationException("ConnectionStrings:Lodge is not configured. Copy appsettings.Local.example.json to appsettings.Local.json.");

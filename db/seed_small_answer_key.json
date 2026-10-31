@@ -6,7 +6,7 @@
     {
       "id": "E01",
       "kind": "group_exceeds_capacity",
-      "description": "Five tenants all request each other but W-STD-2 holds 4 per apartment (placeholder capacity).",
+      "description": "Five tenants all request each other but W-STD-2 holds 4 per apartment (assumed capacity, likely 2 per bedroom).",
       "tenant_codes": [
         "FAKE-00001",
         "FAKE-00002",
@@ -169,9 +169,13 @@
     {
       "id": "E15",
       "kind": "floor_plan_oversubscribed",
-      "description": "M-OTH-4: 6 contracts but only 1 apartment(s) x 4 = 4 places.",
+      "description": "M-OTH-4: 10 contracts but only 1 apartment(s) x 8 = 8 places.",
       "tenant_codes": [
+        "FAKE-00011",
+        "FAKE-00012",
         "FAKE-00019",
+        "FAKE-00026",
+        "FAKE-00027",
         "FAKE-00028",
         "FAKE-00029",
         "FAKE-00030",
@@ -184,7 +188,7 @@
     {
       "id": "E16",
       "kind": "capacity_override",
-      "description": "Apartment 1375 has capacity_override=5 (W-STD-3 placeholder capacity 6).",
+      "description": "Apartment 1375 has capacity_override=5 (W-STD-3 assumed plan capacity 6).",
       "tenant_codes": [],
       "apartments": [
         "1375"
