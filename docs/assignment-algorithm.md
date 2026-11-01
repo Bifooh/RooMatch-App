@@ -1,491 +1,517 @@
 # Roomatch: how tenants get assigned to apartments (DRAFT design)
 
-**Status:** draft for team review, 2026-10-31. Nothing in this document is implemented yet. It describes *what*
-the assignment engine should decide and *why*, in plain words, so it can be critiqued (including by other AI tools)
-before anyone writes solver code. Revised the same day after Samuel shared the Lodge's two real student forms
-(field lists only; see [data-privacy.md](data-privacy.md)); Samuel authorized adjusting his weights.
-
-**How to read the labels**
-
-| Label | Meaning |
-|---|---|
-| **(Samuel/manager input)** | A fact or priority given by Samuel, sometimes relaying the Lodge manager. |
-| **(proposal)** | Our suggested design. Open to change. |
-| **(open question)** | Unknown. Must be answered by Lodge staff before it is relied on. Collected in section 15. |
-
-| **Recommended default (likely uncontroversial)** | A decision we expect reviewers to agree with. Adopt unless someone objects. |
-| **Team decision needed** | A real tradeoff the team must debate. |
+**Status:** draft for team review. Nothing in this document is implemented yet. It describes *what* the assignment
+engine should decide and *why*, in plain words, so it can be critiqued (including by other AI tools) before anyone
+writes solver code. Inputs: Samuel's notes and the field lists (no values) of the Lodge's two student forms; see
+[data-privacy.md](data-privacy.md). The manual workspace that comes first is specified in
+[manual-workspace.md](manual-workspace.md).
 
 All names and tenant codes in the examples are **fictional** (they come from the repo's generated test data).
 
-## 0. Decision summary
+## How to read the labels
 
-| ID | Decision | Label | Section |
-|---|---|---|---|
-| A1 | The contracted floor plan (and so the building) is a hard rule; the engine never changes contracts. | Recommended default | 4 |
-| A2 | Capacity is counted in bedroom slots (shared = 1, private = 2, apartment = 2 x bedrooms), plus any staff override. | Recommended default | 4.1 |
-| A3 | Staff restrictions, must-not-share, manager locks and staff-confirmed accessibility needs are hard rules. | Recommended default | 4 |
-| A4 | A **staff-confirmed** allergy (documentation received by the Lodge manager) is a hard rule against sharing with an approved animal holder, with a recorded per-pair override. It is not a .98 weight. | Recommended default | 4.3, 5.3 |
-| A15 | A tenant with an approved ESA/service animal who stays is pinned in their apartment like a lock; conflicts are solved by placing the allergic tenant elsewhere. | Recommended default | 4.3 |
-| A16 | `has_animal` is a staff-entered flag for an animal approved through the Lodge's Reasonable Accommodation Process, never taken from a form. | Recommended default | 4.3 |
-| A5 | Gender is not stored; the contracted plan decides the building. | Recommended default | 4.2 |
-| A6 | Points are earned per tenant (not per pair), proportional to how much is satisfied; missing data is neutral. | Recommended default | 5.1 |
-| A7 | Tiered (lexicographic) scoring: placed count, then tier 1, then tier 2, then tier 3. | Recommended default | 5.4 |
-| A8 | Closeness scoring for ordered answers: same = full, one step apart = half, further = none (cleanliness, bedtime, school year). | Recommended default | 5.1 |
-| A9 | Roommate names and ward requests: suggest matches, never auto-resolve fuzzy or ambiguous text; staff confirm. | Recommended default | 6 |
-| A10 | Cross-building and different-plan requests are excluded and flagged, never forced. | Recommended default | 6 |
-| A11 | Deterministic tie-breaking (fixed orders, seed stored with the draft). | Recommended default | 10 |
-| A12 | Build "seed then improve" first; use an exact solver (CP-SAT) later as a quality check. Local only. | Recommended default | 9 |
-| A13 | Explanations show points and the blocking rule, never a confidential reason. | Recommended default | 11 |
-| A14 | The waitlist and parking are out of scope. | Recommended default | 4.2 |
-| T1 | Who is left unplaced when a plan is oversubscribed (E15). | **Team decision needed** | 10 |
-| T2 | The recommended weights, especially cleanliness (.75) and where it sits in the tiers. | **Team decision needed** | 5.1 |
-| T3 | Multi-semester signups: is keeping the same apartment a hard promise or a .95 preference? | **Team decision needed** | 5.1 |
-| T4 | Groups bigger than the apartment: 4 + 1 or a more even split? | **Team decision needed** | 7 |
-| T5 | Ward requests: weight (.50 proposed) and whether ward sizes need balancing. | **Team decision needed** | 8 |
-| T6 | Partial credit for an adjacent floor in renewal moves. | **Team decision needed** | 5.1 |
-| T7 | Whether accessible apartments must stay reserved even when nobody needs them. | **Team decision needed** | 4 |
-| T8 | Shy/Outgoing: does "match" mean the same answer? | **Team decision needed** | 5.1 |
-| T9 | How much priority renewals get over new tenants (fairness). | **Team decision needed** | 13 |
-| T10 | A **self-reported** allergy Yes without confirmed documentation. Recommended default: warn and avoid (tier 0b in 5.4, plus a review item); the hard rule applies only after confirmation. Alternative: hard from the start. | **Team decision needed** (with a recommended default) | 4.3 |
+Every decision in this document carries exactly one of three labels.
+
+| Label | Meaning |
+|---|---|
+| **CONFIRMED PRODUCT DECISION** | Decided by Samuel's team. Build on it. |
+| **PROPOSED TECHNICAL DEFAULT** | Our suggestion. Not approved. It needs the team's explicit approval, and may change after review. |
+| **QUESTION FOR LODGE CONFIRMATION** | Only authorized Lodge staff can answer it (policy, practice, or data). Nothing is built on an assumed answer. |
+
+Facts that Samuel reported about the Lodge (two buildings, 4 floors each, plan capacities, terms) are marked
+*(Samuel/manager input)*. They are inputs, not decisions. Policies are never inferred from them, and nothing here is a
+legal conclusion.
+
+## 0. Decision register
+
+### 0.1 CONFIRMED PRODUCT DECISION
+
+| ID | Decision |
+|---|---|
+| AC1 | Lodge-only MVP, fictional data only, one computer. |
+| AC2 | React/TypeScript frontend, ASP.NET Core/C# backend, MySQL. |
+| AC3 | Tenants are assigned to **apartments only**. Tenants choose bedrooms themselves. |
+| AC4 | Implementation order: (1) manual assignment workspace with backend validation; (2) before/after history, undo and optional structured reasons; (3) automatic draft generation using explicit constraints and points; later: what-if alternatives and manager-approved preference adjustments. |
+| AC5 | No cloud AI, no automatic learning, no live multi-user collaboration in the MVP. |
+| AC6 | Workspace: apartment board/table, unassigned list, uncluttered conflict queue; unresolved roommate requests are preserved with the reason they were excluded. ([manual-workspace.md](manual-workspace.md)) |
+| AC7 | Every committed move or swap records all affected tenants' before/after assignments; swaps are validated and saved atomically. |
+| AC8 | Saved draft snapshots plus change history (no full event sourcing). The original generated draft is preserved as the evaluation baseline. |
+| AC9 | Reasons are optional and never block editing. Categories: New information; Better tradeoff using existing information; One-time exception; No reason supplied. |
+| AC10 | Undo history is retained, but undone edits are not accepted preferences. Unexplained edits are not reliable evidence for adjusting weights. Notes stay local and are visible only to authorized property staff, not developers. |
+| AC11 | Success measures are defined as in section 15; the ~90% acceptance and under-60-minute targets are hypotheses to validate, not promises. |
+| AC12 | Apartment-level compatibility is the initial scoring proposal to work from; bedroom-pair scoring is an unvalidated alternative, not an approved improvement (5.6). |
+
+### 0.2 PROPOSED TECHNICAL DEFAULT (needs team approval)
+
+| ID | Proposal | Section |
+|---|---|---|
+| AP1 | The contracted floor plan (and so the building) is a hard rule; the engine never changes contracts. | 4 |
+| AP2 | Capacity in bedroom slots (shared = 1, private = 2, apartment = 2 x bedrooms), plus any staff override. | 4.1 |
+| AP3 | Staff restrictions, must-not-share and manager locks are hard rules. | 4 |
+| AP4 | Animal/allergy handling: hard only after staff confirm documentation; a self-reported Yes is a strong avoidance (tier 0b) plus a review item. No automatic animal-holder locks until the Lodge confirms the policy. | 4.3 |
+| AP5 | Gender is not stored; the contracted plan decides the building. | 4.2 |
+| AP6 | Points per tenant (not per pair), proportional to how much is satisfied. | 5.1 |
+| AP7 | The recommended weights in 5.1 (including cleanliness .75 and ward request .50). | 5.1 |
+| AP8 | **No double counting:** renewal stay (S1) and two-semester continuity (S10) are one "continuity" line, earned at most once per tenant. | 5.1 |
+| AP9 | Tiered (lexicographic) scoring, with the tier-1 tradeoff stated openly. | 5.4 |
+| AP10 | Missing answers get a fixed "expected" credit (0.5) instead of being omitted, and data coverage is reported separately. | 5.5 |
+| AP11 | Closeness scoring for ordered answers (same = 1, one step = 0.5, further = 0). | 5.1 |
+| AP12 | Name resolution: exact match only with a **unique eligible target-term** tenant; everything else goes to review. Prefer the Lodge's resident ID for identity. | 6 |
+| AP13 | Cross-building and different-plan requests are excluded and flagged, never forced. | 6 |
+| AP14 | Build "seed then improve" first; CP-SAT later as a check. Report "search did not find a placement" separately from "proven impossible". | 9 |
+| AP15 | Reproducibility: record input, configuration and algorithm versions (not just a seed). | 10 |
+| AP16 | Explanations show points and the blocking rule, never a confidential reason. | 11 |
+| AP17 | A later "improve existing draft" workflow that minimizes moves and presents tradeoffs. | 12 |
+| AP18 | Waitlist and parking are out of scope. | 4.2 |
+
+### 0.3 QUESTION FOR LODGE CONFIRMATION
+
+The full list is in section 18. The most important ones: which renewal stays are **guaranteed** versus preferred;
+whether two-semester signups are promised the same apartment; animal/allergy documentation, override and any
+"don't move the animal holder" rule; whether accessible apartments must stay reserved; who is left unplaced when a
+plan is oversubscribed.
 
 ---
 
 ## 1. Purpose and context
 
 The Lodge is student housing with **two buildings, Women's and Men's, each with 4 floors** (Samuel/manager input).
-Each term, every tenant has a signed contract, and staff must give each contracted tenant an **apartment number**.
-Today this is done by hand. Roomatch should produce a *draft* assignment that staff can review, edit, lock and
-explain, then finalize.
+Each term, every tenant has a signed contract, and staff give each contracted tenant an **apartment number**. Today
+this is done by hand. Roomatch first gives staff a better manual workspace (AC4), then history and undo, and only
+then an automatic *draft* that staff review, edit, lock and finalize.
 
-Key facts that shape the design:
-
-- **The contract comes first.** Tenants sign before roommates are known. The contract fixes the **floor plan** and
-  the **price**, and the floor plan fixes the building (Women's or Men's) (Samuel/manager input).
-- **Assignments are to apartment numbers only.** The app never picks a bedroom or a bed (Samuel/manager input).
-- **Everyone is LDS.** The Lodge alone is one stake of about **6 wards, each with 150+ people**. A ward is tied to a
-  set of apartments, so a tenant's ward is a *result* of where they are placed (Samuel/manager input; see section 8).
-- The goal is a **good, explainable, repeatable** draft, not a black box. Staff stay in charge.
+- **The contract comes first.** Tenants sign before roommates are known. The contract fixes the **floor plan** and the
+  **price**, and the floor plan fixes the building (Samuel/manager input).
+- **Apartments only; tenants choose bedrooms themselves** (CONFIRMED PRODUCT DECISION, AC3).
+- **Everyone is LDS.** The Lodge is one stake of about **6 wards, each with 150+ people**; a ward is tied to a set of
+  apartments, so a tenant's ward is a *result* of placement (Samuel/manager input; section 8).
+- The goal is a **good, explainable, repeatable** draft. Staff stay in charge.
 
 ## 2. Terms
 
-The Lodge runs **three terms: Fall, Winter and Spring. There is no Summer term** (Samuel/manager input).
-Each term is assigned separately. A **renewing** tenant is someone who already lived at the Lodge in the previous
-term and has a contract for the next one; their "current apartment" is where they lived in that previous term
-(proposal; the Spring-to-Fall gap over the summer is an open question: is someone returning in Fall after Spring
-still a "renewal" for staying purposes?).
+The Lodge runs **Fall, Winter and Spring; there is no Summer term** (Samuel/manager input). Each term is assigned
+separately. PROPOSED TECHNICAL DEFAULT: a **renewing** tenant lived at the Lodge in the previous term and has a
+contract for the next one; their "current apartment" is where they lived that term. QUESTION FOR LODGE CONFIRMATION:
+does a tenant returning in Fall after Spring count as a renewal for staying purposes?
 
 ## 3. The two-layer model
 
-The engine works in two layers.
+1. **Hard rules** (section 4): yes/no checks the engine never breaks. If they make a placement impossible, the
+   tenant stays **unplaced with the reason**.
+2. **A points score** (section 5): among plans that pass every hard rule, prefer more points. Every point earned or
+   missed is listed, so each placement can be explained.
 
-1. **Hard rules** (section 4). Yes/no checks that can never be broken by the solver. A plan that breaks any hard
-   rule is invalid, full stop. If the rules make it impossible to place someone, the engine leaves that person
-   **unplaced and says why**; it never bends a rule quietly.
-2. **A points score** (section 5). Among all plans that pass every hard rule, the engine prefers the one with the
-   most points. Points come from weighted preferences (renewals, roommate requests, sleep schedules, and so on).
-   Every point a tenant earns or misses is listed, so each placement can be explained.
-
-Why not only if-statements? Because preferences conflict all the time (two friends want the same last spot, a
-renewal blocks a group). Points let the engine *weigh* those conflicts consistently instead of following whichever
-if-statement happens to run first. Why not only points? Because some things (wrong building, over capacity, an
-animal next to a severe allergy) must never be "worth it", no matter how many points are on the other side.
+Points let the engine weigh conflicts consistently (two friends want the last spot; a renewal blocks a group). Hard
+rules exist because some things (wrong building, over capacity) must never be "worth it".
 
 ## 4. Hard rules
 
+All rows are **PROPOSED TECHNICAL DEFAULT** unless marked otherwise.
+
 | # | Rule | Source | Notes |
 |---|---|---|---|
-| H1 | **Contracted floor plan.** A tenant may only be placed in an apartment of the floor plan on their contract. This also fixes the building (Women's/Men's). | Samuel/manager input | The engine never changes a contract. A request that needs a different plan becomes a staff flag (E08, E11). |
-| H2 | **Capacity, in bedroom slots.** See 4.1. | Samuel/manager input (2 per bedroom, private rooms); slot model is a proposal | Includes the staff `capacity_override`. |
-| H3 | **Staff placement restrictions**: required/excluded apartment, required/excluded floor. | Existing schema (`placement_restrictions`) | Entered only after staff confirm. The confidential reason is never stored. |
-| H4 | **must_not_share_with**: the two tenants may not be in the same apartment. | Existing schema | Beats any roommate request (E14). |
-| H5 | **Animal vs confirmed allergy.** A tenant whose allergy is **staff-confirmed** (documentation received by the Lodge manager) may not share an apartment with a tenant who has an **approved** animal. | Samuel/manager input: weight .98, "people are very passionate about it"; the Lodge's ESA policy on Form 2 | Hard unless staff override it for that pair (5.3). A self-reported Yes alone is not hard; see 4.3. Whether neighbouring apartments matter is an open question. |
-| H9 | **Approved animal holders are not moved out.** A tenant with an approved ESA/service animal who stays in (or renews into) their apartment is pinned there like a manager lock. | The Lodge's ESA policy on Form 2 (via Samuel) | Our reading of "will not move the tenant with an ESA out" (4.3). |
-| H6 | **Accessibility need.** A tenant with a **staff-confirmed** accessibility need must get a handicap-adapted apartment of their plan. | Samuel/manager input: a few first-floor apartments are adapted; rule is a proposal | If their plan has no free adapted apartment, they go to the review queue. The opposite direction (others avoiding these apartments) is a soft rule, S7. |
-| H7 | **Manager locks.** A locked assignment is kept exactly as is. | Existing schema (`is_locked`, `locked_by`) | If a lock itself breaks another hard rule, the engine refuses to build the draft and shows the conflict; it does not move the lock. |
-| H8 | **One apartment per contract per draft**, and nobody is moved to another plan to "make room". | Existing schema | Unplaced tenants are reported honestly (E15). |
+| H1 | **Contracted floor plan.** Only apartments of the tenant's contracted plan (which fixes the building). | Samuel/manager input (the contract fixes plan and price) | The engine never changes a contract; a request needing another plan becomes a staff flag (E08, E11). |
+| H2 | **Capacity, in bedroom slots** (4.1). | Samuel/manager input (2 per bedroom, private rooms) | Includes `capacity_override`. |
+| H3 | **Staff placement restrictions**: required/excluded apartment or floor. | Existing schema | Entered only after staff confirm; the confidential reason is never stored. |
+| H4 | **must_not_share_with.** | Existing schema | Beats any roommate request (E14). |
+| H5 | **Animal vs confirmed allergy** (4.3). | Lodge form text (via Samuel) | Hard only once documentation is staff-confirmed. QUESTION FOR LODGE CONFIRMATION: the documentation rule and who may override. |
+| H6 | **Accessibility need.** A tenant with a staff-confirmed need gets a handicap-adapted apartment of their plan. | Samuel/manager input: a few first-floor apartments are adapted | QUESTION FOR LODGE CONFIRMATION: who confirms a need; whether these apartments must stay reserved (S7). |
+| H7 | **Manager locks** are kept exactly. | Existing schema | A lock that breaks another hard rule is shown as a conflict; the engine never moves it. |
+| H8 | **One apartment per contract per draft**; nobody is moved to another plan to make room. | Existing schema | Unplaced tenants are reported separately (E15, section 15). |
+
+The earlier draft had an "H9: approved animal holders are pinned in place" rule. It is **withdrawn as a rule** and
+is now a QUESTION FOR LODGE CONFIRMATION (4.3): we do not infer it from the form text.
 
 ### 4.1 Capacity in bedroom slots
 
-Every bedroom holds **2 people by default** (Samuel/manager input). That gives these plan capacities:
+Every bedroom holds **2 people by default** (Samuel/manager input). Plan capacities (Samuel/manager input; all 10
+confirmed by Samuel 2026-10-31):
 
-| Plan | Bedrooms | Default headcount | Source |
-|---|---|---|---|
-| Women's Standard 2bd/2ba (W-STD-2) | 2 | 4 | Samuel/manager input |
-| Women's Oversized 2bd/2ba (W-OVR-2) | 2 | 4 | Samuel/manager input |
-| Women's Standard 3bd/3ba (W-STD-3) | 3 | 6 | Samuel/manager input |
-| Women's Flat 4bd/4ba (W-FLAT-4) | 4 | 8 | Samuel/manager input |
-| Women's Standard Townhome 4bd/4ba (W-STH-4) | 4 | 8 | Samuel/manager input |
-| Women's Oversized Townhome 4bd/4ba (W-OTH-4) | 4 | 8 | Samuel/manager input |
-| Men's Standard 3bd/3ba (M-STD-3) | 3 | 6 | Samuel/manager input (confirmed 2026-10-31) |
-| Men's Flat 4bd/4ba (M-FLAT-4) | 4 | 8 | Samuel/manager input |
-| Men's Standard Townhome 4bd/4ba (M-STH-4) | 4 | 8 | Samuel/manager input |
-| Men's Oversized Townhome 4bd/4ba (M-OTH-4) | 4 | 8 | Samuel/manager input |
+| Plan | Bedrooms | Default headcount |
+|---|---|---|
+| Women's Standard 2bd/2ba (W-STD-2) | 2 | 4 |
+| Women's Oversized 2bd/2ba (W-OVR-2) | 2 | 4 |
+| Women's Standard 3bd/3ba (W-STD-3) | 3 | 6 |
+| Women's Flat 4bd/4ba (W-FLAT-4) | 4 | 8 |
+| Women's Standard Townhome 4bd/4ba (W-STH-4) | 4 | 8 |
+| Women's Oversized Townhome 4bd/4ba (W-OTH-4) | 4 | 8 |
+| Men's Standard 3bd/3ba (M-STD-3) | 3 | 6 |
+| Men's Flat 4bd/4ba (M-FLAT-4) | 4 | 8 |
+| Men's Standard Townhome 4bd/4ba (M-STH-4) | 4 | 8 |
+| Men's Oversized Townhome 4bd/4ba (M-OTH-4) | 4 | 8 |
 
-**Private rooms.** Some students pay extra to have a bedroom and bathroom to themselves (Samuel/manager input). So
-the real headcount of an apartment varies: a 2-bedroom with one private tenant holds 3 people, not 4. We
-**presume the private option is part of the contract**, like the plan and price (open question).
-
-The proposal is to count capacity in **bedroom slots** (half-bedrooms) instead of people:
-
-- a **shared** tenant uses **1 slot** (half a bedroom);
-- a **private** tenant uses **2 slots** (a whole bedroom);
-- an apartment has **2 x bedrooms** slots.
-
-**Feasibility check:** `2 x (private tenants) + (shared tenants) <= 2 x bedrooms`, **and** the headcount is at most the
-staff `capacity_override` when one is set. This is exactly the same as "private tenants each get a whole bedroom and
-the shared tenants fit two per remaining bedroom". Examples for a 4-bedroom (8 slots): 8 shared; 1 private + 6 shared
-(7 people); 2 private + 4 shared (6 people); 4 private (4 people).
-
-Two consequences to confirm: (a) if the shared count is odd, one shared tenant ends up alone in a bedroom without
-paying for private (is that allowed, and does it matter?); (b) the existing `capacity_override` is a **headcount**,
-but E16's reason is "one sleeping area unavailable", which is really a loss of bedroom slots. We may want the
-override expressed in slots instead (open question).
+**Private rooms.** Some students pay extra for a bedroom and bathroom to themselves (Samuel/manager input), so a
+2-bedroom with one private tenant holds 3. PROPOSED TECHNICAL DEFAULT: count **bedroom slots**: shared tenant = 1,
+private tenant = 2, apartment = 2 x bedrooms. Check: `2 x private + shared <= 2 x bedrooms`, and headcount at most
+`capacity_override` when set. This only checks that a valid bedroom split *exists*; tenants still choose bedrooms
+themselves (AC3). QUESTION FOR LODGE CONFIRMATION: is the private option on the contract; may a shared-rate tenant
+end up alone in a bedroom; should the override be in people or bedrooms (E16 says "one sleeping area unavailable")?
 
 ### 4.2 Where the inputs come from (the Lodge's two forms)
 
-The Lodge has two student forms (Samuel/manager input; field lists only, no values kept). **Form 1** is the website
-application filled before the deposit. **Form 2** is the roommate-matching form, filled after the security deposit
-is paid and before the semester. The full field-by-field privacy table is in [data-privacy.md](data-privacy.md).
+**Form 1** is the website application (before the deposit). **Form 2** is the roommate-matching form (after the
+security deposit, before the semester). Field-by-field privacy handling is in [data-privacy.md](data-privacy.md).
 
 | Engine input | Comes from | Used for |
 |---|---|---|
 | Contracted floor plan, term | The signed contract (Form 1 shows the requested plan and semester) | H1 |
-| Self-reported allergy concern | Allergy question on **both** forms (Yes/No): Form 1 asks about living with an assistance animal, Form 2 about a roommate with an ESA/service animal | Tier 0b, review item (4.3) |
+| Self-reported allergy concern | Allergy question on **both** forms (Yes/No): Form 1 about living with an assistance animal, Form 2 about a roommate with an ESA/service animal | Tier 0b, review item (4.3) |
 | Staff-confirmed allergy | Staff, after the Lodge manager receives documentation by email | H5 |
-| Has an approved animal | **Not on either form**: staff enter it from the Lodge's Reasonable Accommodation Process | H5, H9, tier 0b |
-| "If yes, please explain your condition" | Form 2, optional free text | **Never imported or stored** (health information). |
-| Events & Amenities page, last page | Form 2 | **Not stored**; doesn't affect matching. |
-| Second semester signup ($50 off both leases) | Form 1 | S10 continuity |
+| Has an approved animal | **Not on either form**: staff enter it from the Lodge's Reasonable Accommodation Process | H5, tier 0b |
+| "If yes, please explain your condition" | Form 2, optional free text | **Never imported or stored** (health information) |
+| Events & Amenities page, last page | Form 2 | **Not stored**; doesn't affect matching |
+| Second semester signup ($50 off both leases) | Form 1 | S1 continuity |
 | Roommate request (free text) | Form 1 and Form 2 ("people to live with") | S2, S5 |
 | Current apartment number (or N/A) | Form 2, checked against Lodge records | S1, S3 |
-| Other requests (e.g. "124th ward") | Form 2 free text, reviewed by staff | S9 ward request |
+| Other requests (e.g. "124th ward") | Form 2 free text, reviewed by staff | S9 |
 | Cleanliness 1-5 | Form 2 | S8 |
 | Typical bedtime: 8-9 pm, 10-11 pm, 12-1 am, later than 1 am | Form 2 | S4 |
-| Shy/Outgoing, school year (Freshman to Senior), age, major | Form 2 (age also on Form 1) | S6 extras |
-| Gender | Form 1 | **Not stored.** The contracted plan already fixes the building; a mismatch is only flagged at import. |
-| Waitlist checkbox, parking pass | Form 1 | **Out of scope** for assignment. |
+| Shy/Outgoing, school year, age, major | Form 2 (age also on Form 1) | S6 extras |
+| Gender | Form 1 | **Not stored** (AP5); a plan/gender mismatch is only flagged at import |
+| Waitlist checkbox, parking pass | Form 1 | **Out of scope** (AP18) |
 
-Two things to flag: tenants who list both roommate fields (Form 1 and Form 2) may name different people, so Form 2,
-the later one, should win unless staff say otherwise (proposal). And the bedtime buckets skip 9-10 pm, which could
-confuse some students (a note for the Lodge, not an engine problem).
+PROPOSED TECHNICAL DEFAULT: if Form 1 and Form 2 name different roommates, Form 2 (the later one) counts unless staff
+say otherwise. Note for the Lodge: the bedtime buckets skip 9-10 pm.
 
-### 4.3 Animals and allergies (the Lodge's ESA policy)
+### 4.3 Animals and allergies
 
-Form 2 has an Emotional Support Animal information page (Samuel/manager input, paraphrased). Under the Fair Housing
-Act the Lodge allows assistance animals and ESAs with proper paperwork through its **Reasonable Accommodation
-Process**. It will not move the tenant with the ESA out of the apartment, and it cannot move a tenant out without
-proper documentation of a known allergy or other extenuating circumstances. Students with allergies or medical
-conditions that prevent living with an ESA roommate must email documentation (a doctor's note or allergy results)
-to the Lodge manager.
+What the Lodge's Form 2 says (paraphrased by Samuel): the Lodge allows assistance animals/ESAs with proper
+paperwork through its **Reasonable Accommodation Process**; it states it will not move the tenant with the ESA out of
+the apartment and cannot move a tenant out without proper documentation of a known allergy or extenuating
+circumstances; students with allergies or medical conditions that prevent living with an ESA roommate must email
+documentation to the Lodge manager. **We do not interpret this text legally or turn it into engine policy on our own.**
 
-How the engine follows this (proposal):
-
-| Situation | Data | Engine behaviour |
+| Situation | PROPOSED TECHNICAL DEFAULT | QUESTION FOR LODGE CONFIRMATION |
 |---|---|---|
-| Tenant answered **Yes** to the allergy question on Form 1 (assistance-animal wording) or Form 2 (ESA/service-animal wording) | `allergy_self_reported` | **Self-reported allergy concern.** Avoided strongly (tier 0b in 5.4) and shown as a "needs staff review" item whenever it conflicts with an animal holder. Not a hard rule yet (T10). |
-| The Lodge manager has the documentation and staff confirm it in the app | `allergy_confirmed_by`, `allergy_confirmed_at` (no details) | **Hard rule H5.** |
-| Tenant has an animal approved through the Reasonable Accommodation Process | `has_animal`, entered by staff with who/when (no animal or condition details) | Counts for H5 and tier 0b. Never read from a form. |
-| Approved animal holder stays or renews in place | as above | **H9:** pinned in their apartment. The allergic tenant is the one placed elsewhere. |
-| Documentation arrives **after** a draft exists | | The draft is re-checked; a new H5 conflict becomes a review item, and the fix moves the allergic tenant, not the animal holder. Timing is an open question. |
+| Tenant answered **Yes** on either form | Self-reported concern: avoided strongly (tier 0b, 5.4) and shown as a "needs staff review" item when it conflicts with an animal holder. Not a hard rule. | Is a Yes without documentation treated as anything today? |
+| Staff confirm the documentation the manager received | Hard rule H5. Only who/when is recorded, no details. | Who may confirm, in which screen? What if it arrives after a draft or after assignments are final? |
+| Tenant has an approved animal | `has_animal` entered by staff from the Reasonable Accommodation Process, never from a form. | Can staff provide a yes/no list each term? Are other animals allowed? |
+| Approved animal holder renews or stays | **No automatic lock.** The case is flagged; staff may lock it manually. | Is the animal holder always kept in place (including across terms)? May they choose to move? |
+| Exception to H5 for a specific pair | Recorded per-pair override (who/when). | Who is authorized to approve an override? |
 
-The documentation itself, and the optional "please explain your condition" text on Form 2, **never enter Roomatch**
-(see [data-privacy.md](data-privacy.md)). Only the Yes/No and the staff confirmation are used.
+The documentation and the condition explanation **never enter Roomatch** ([data-privacy.md](data-privacy.md)).
 
 ## 5. The points score
 
 ### 5.1 Weights: Samuel's original and the recommended revision
 
-Samuel gave importance weights on a 0 to 1 scale and then authorized revising them using the forms (Samuel/manager
-input). Each weight turns into **points = weight x 100 per tenant** at full satisfaction (proposal). "Closeness"
-below means: same answer = 1, one step apart = 0.5, two or more steps apart = 0, averaged over the roommates who
-answered; tenants who didn't answer are left out of the average.
+All recommended values are **PROPOSED TECHNICAL DEFAULT (AP7)**: not approved. Samuel's originals stay visible.
+Points = weight x 100 per tenant at full satisfaction. "Closeness" (AP11): same answer = 1, one step apart = 0.5,
+two or more steps = 0, averaged over the tenant's roommates; missing answers are handled as in 5.5.
 
-| Code | Preference | Samuel's original | Recommended | Tier | How a tenant earns the points | Reason for the change |
+| Code | Preference | Samuel's original | Recommended | Tier | How a tenant earns the points | Reason |
 |---|---|---|---|---|---|---|
-| (H5) | Avoid animal/allergy conflicts | .98 | hard rule once documentation is confirmed; tier 0b before that | 0b | Confirmed: never traded, staff override only (5.3). Self-reported: minimized above all preferences (5.4). | A weight can be outbid; the manager's intent is "almost never". The Lodge's policy requires documentation before it acts. |
-| S1 | Renewing tenant who wants to **stay** stays in their apartment | .95 | .95 | 1 | All or nothing, only if the apartment's plan matches the new contract (not E11). | Unchanged. |
-| S10 | **Signed for two semesters**: same apartment in the second term | none (new) | .95 | 1 | All or nothing, scored like S1 in the second term. | Form 1 offers "$50 off both leases"; moving them mid-year is like breaking a renewal stay. **Flag (T3):** the Lodge may treat it as a promise, which would make it a hard rule or a manager lock. |
+| (H5) | Avoid animal/allergy conflicts | .98 | hard after confirmation; tier 0b before | 0b | Never traded for preferences (5.3). | A weight can be outbid; the Lodge's process relies on documentation. |
+| S1 | **Continuity:** stays in the same apartment, because (a) a renewing tenant asked to stay, or (b) they signed for two semesters | .95 (renewal stay) | .95, **at most once per tenant** | 1 | All or nothing; only if the apartment's plan matches the new contract (not E11). | Merges the old S10 so the same outcome is not rewarded twice (AP8, below). |
+| S10 | Two-semester continuity | none (new) | **not scored separately** | - | Counts as source (b) of S1. | Kept for traceability. |
 | S2 | **Mutual** roommate requests | .90 | .90 | 1 | 90 x (mutual partners placed with them / mutual partners requested). | Unchanged. |
-| S3 | Renewal moves stay **nearby** (same floor AND same ward) | .85 | .85 | 1 | 85 if same floor and same ward; while ward data is missing, same floor counts. | Unchanged. Adjacent-floor partial credit is T6. |
-| S8 | **Cleanliness** match (1-5) | none (it is not on Samuel's list; nearest was extras .30) | .75 | 2 | 75 x closeness on the 1-5 scale. | A real, specific form field and a common cause of roommate conflict, so it deserves more than an extra. Kept just above bedtime. **Team decision (T2).** |
-| S4 | **Bedtime** match | .70 ("sleep schedules") | .70 | 2 | 70 x closeness on the 4 ordered buckets (8-9 pm, 10-11 pm, 12-1 am, later than 1 am). | Weight unchanged; scoring now uses the form's real buckets instead of early/typical/late. |
-| S7 | Non-needing tenants avoid accessible apartments | none (proposal) | -.60 | 2 | -60 per tenant without a need placed in an `is_accessible` apartment. | Keeps the few adapted apartments free when avoidable. Whether they must be reserved is T7. |
-| S5 | **One-way** roommate requests | .55 | .55 | 2 | 55 x (one-way requested people placed with them / requested). Requester only. | Unchanged. |
-| S9 | **Ward request** honored (e.g. "124th ward") | none (new) | .50 | 2 | 50 if placed in an apartment of the staff-confirmed requested ward. | Form 2 invites it as free text. A place preference is weaker than a people preference, so it sits just below one-way requests. Needs the apartment-to-ward map. **Team decision (T5).** |
-| S6 | **Extras**, total | .30 | .30 total | 3 | Sum of the four lines below. | Samuel's total kept, split by how useful each field is. |
-| S6a | Shy/Outgoing | (in extras) | .10 | 3 | 10 if same answer, else 0. | Binary, so closeness doesn't apply. Whether "same" is better is T8. |
+| S3 | Renewal moves stay **nearby** (same floor AND same ward) | .85 | .85 | 1 | 85 if same floor and same ward; while ward data is missing, same floor counts. | Unchanged. Adjacent-floor credit is a Lodge question. |
+| S8 | **Cleanliness** (1-5) | none (nearest: extras .30) | .75 | 2 | 75 x closeness. | A specific form field and a common cause of conflict. |
+| S4 | **Bedtime** (4 ordered buckets) | .70 ("sleep schedules") | .70 | 2 | 70 x closeness. | Weight unchanged; uses the form's buckets. |
+| S7 | Non-needing tenants avoid accessible apartments | none | -.60 | 2 | -60 per non-needing tenant in an `is_accessible` apartment. | Only if the Lodge does not require strict reservation (H6 question). |
+| S5 | **One-way** roommate requests | .55 | .55 | 2 | 55 x (requested people placed with them / requested). Requester only. | Unchanged. |
+| S9 | **Ward request** (e.g. "124th ward") | none (new) | .50 | 2 | 50 if placed in the staff-confirmed requested ward. | A place preference, weaker than a people preference. Needs the ward map. |
+| S6 | **Extras**, total | .30 | .30 total | 3 | Sum of S6a-S6d. | Samuel's total kept. |
+| S6a | Shy/Outgoing (binary) | (in extras) | .10 | 3 | 10 if same answer, else 0. | Whether "same" is better is unvalidated. |
 | S6b | School year (Freshman to Senior) | (in extras) | .08 | 3 | 8 x closeness. | Low signal. |
-| S6c | Age | (in extras) | .07 | 3 | 7 if within 2 years, 3.5 if within 4, else 0. | Comes straight from the form; low signal. |
-| S6d | Major | (in extras) | .05 | 3 | 5 if the same (case-insensitive, after trimming). | Free text, so matching is rough; lowest weight. |
+| S6c | Age | (in extras) | .07 | 3 | 7 if within 2 years, 3.5 if within 4, else 0. | Low signal. |
+| S6d | Major | (in extras) | .05 | 3 | 5 if the same (case-insensitive, trimmed). | Free text; lowest. |
 
-Per tenant rather than per pair, so a big apartment or a big friend group does not collect more points just by having
-more pairs. A full mutual group of 4 earns 4 x 90 = 360 (four happy people), not 6 pairs x 90 = 540.
+**AP8, no double counting (PROPOSED TECHNICAL DEFAULT, for approval).** A renewing tenant who also signed for two
+semesters would otherwise collect 95 + 95 = 190 for one outcome (staying put), which would make them twice as hard to
+move as any other renewal. Proposed: one continuity line per tenant, 95 at most, whatever the number of reasons; the
+explanation lists the reasons. Alternative for the team: make two-semester continuity a hard rule or a manager lock,
+if the Lodge says it is a promise (QUESTION FOR LODGE CONFIRMATION).
 
-Missing data never earns or loses points (it just leaves that line out), so optional fields stay optional.
+Per tenant rather than per pair (AP6), so big groups don't collect more points just by having more pairs: a full mutual
+group of 4 earns 4 x 90 = 360, not 6 pairs x 90 = 540.
 
 ### 5.2 The danger: many small points beating one big one
 
-A plain sum lets many low-weight points outvote one high-weight point. Example: a renewing tenant who wants to stay
-earns S1 = 95. Suppose moving her out would let five other people in that apartment improve their sleep match from
-0.5 to 1.0: each gains 70 x 0.5 = 35, total 175. A plain sum says "move the renewal", which is surely not what the
-manager meant by .95 vs .70. Extras (S6) and the other tier-2 lines are even more dangerous because nearly everyone has a few of them.
+In a plain sum, many low-weight points outvote one high-weight point. A renewal stay earns 95; if moving her lets
+five roommates improve bedtime closeness from 0.5 to 1.0, they gain 5 x 35 = 175, and a plain sum moves her.
 
 ### 5.3 Hard rule vs a .98 weight
 
-A weight, however high, can be outbid. At 98 points, an allergy conflict would be "worth it" if it unlocked two
-mutual pairs (4 x 90 = 360 points). That is why H5 is a **hard rule with an explicit staff override** instead of a
-98-point score: the system never trades it away; only a named staff member can, for one specific pair, and that
-override is recorded (proposed schema change in section 14). The .98 tells us how strongly the manager feels; the
-override is how "98% not 100%" is expressed safely. Before documentation is confirmed, a self-reported allergy sits in
-its own tier (0b) instead, so it still can't be traded for roommate preferences.
+A weight can be outbid: at 98 points, an allergy conflict would be "worth it" if it unlocked two mutual pairs
+(4 x 90 = 360). That is why confirmed allergies are a hard rule with a recorded override, and unconfirmed ones sit in
+their own tier (0b) above all preferences.
 
-### 5.4 Proposal: tiers, with points inside each tier
+### 5.4 Tiers, with points inside each tier (PROPOSED TECHNICAL DEFAULT, AP9)
 
 | Tier | Contents | Compared how |
 |---|---|---|
-| 0 | Number of contracted tenants placed | First. Always place as many people as the hard rules allow. |
-| 0b | Number of self-reported (unconfirmed) allergy concerns sharing with an approved animal holder | Minimized right after tier 0. Each remaining one is a review item. |
-| 1 | S1 renewal stay (95), S10 two-semester continuity (95), S2 mutual requests (90), S3 nearby renewal moves (85) | Points added up inside the tier. |
-| 2 | S8 cleanliness (75), S4 bedtime (70), S7 accessible-apartment penalty (-60), S5 one-way requests (55), S9 ward request (50) | Only used to choose between plans that tie on tiers 0 and 1. |
-| 3 | S6 extras (30 total: shy/outgoing, school year, age, major) | Only used to break ties on tiers 0 to 2. |
+| 0 | Number of contracted tenants placed | First. |
+| 0b | Number of self-reported (unconfirmed) allergy concerns sharing with an approved animal holder | Minimized right after tier 0; each remaining one is a review item. |
+| 1 | S1 continuity (95), S2 mutual requests (90), S3 nearby renewal moves (85) | Points added up inside the tier. |
+| 2 | S8 cleanliness (75), S4 bedtime (70), S7 accessible-apartment penalty (-60), S5 one-way (55), S9 ward request (50) | Only to choose between plans tied on tiers 0 to 1. |
+| 3 | S6 extras (30 total) | Only to break remaining ties. |
 
-Plans are compared **tier by tier** (lexicographic): a plan with more tier-1 points always wins, however many tier-2
-or tier-3 points the other one has. Inside a tier, Samuel's weights decide the trade-offs (one renewal stay, 95, beats
-one tenant's mutual request, 90).
+Plans are compared tier by tier: more tier-1 points always wins, however many tier-2 or tier-3 points the other has.
 
-**Tradeoffs**
+**Tiers do not protect renewal stays inside tier 1.** A renewal stay (95) still loses to combined points in the same
+tier. Examples: moving one staying renewal out can let two other tenants each complete a mutual request
+(2 x 90 = 180 > 95), or complete one mutual request and one nearby move (90 + 85 = 175 > 95). The engine would then
+move the renewal. QUESTION FOR LODGE CONFIRMATION: **which stays are guaranteed and which are only preferred?**
+Guaranteed stays should become manager locks (H7) or a hard rule; preferred stays keep 95 points and can lose as
+above.
 
 | Option | Pros | Cons |
 |---|---|---|
-| **Tiers (recommended)** | Guarantees the 5.2 problem cannot happen across tiers. Easy to explain ("we kept your renewal; sleep only breaks ties"). | Rigid: 1 tier-1 point beats 1,000 tier-2 points, so a tiny gain for one person can cost many people their sleep match. The tier boundaries become a new decision for the team. |
-| **Single sum with per-tenant caps** | One number; trades off smoothly. Caps (each tenant can earn at most 75 from S8, 70 from S4, 55 from S5, 30 from S6) limit the damage. | Does not remove the problem: one tenant's 95 can still lose to several other tenants' capped points (the example in 5.2 still flips). |
-| **Single sum with steep weights** (e.g. tier 1 x 1,000, tier 2 x 10) | Behaves like tiers but still one number; easy for an exact solver. | The multipliers are arbitrary and must be large enough for the dataset size; hard to explain. |
+| **Tiers (proposed)** | Cross-tier problem (5.2) can't happen; easy to explain. | Rigid across tiers; still trades inside tier 1 (above); tier boundaries are a decision. |
+| Single sum with per-tenant caps | One number; smooth. | The 5.2 example still flips. |
+| Single sum with steep multipliers | Like tiers, one number; easy for an exact solver. | Arbitrary multipliers; hard to explain. |
 
-**Why the tiers stay after the revision:** the forms added more tier-2 lines (cleanliness, ward), which makes
-the 5.2 risk *bigger* in a plain sum: four tier-2 lines across six roommates can easily total more than one renewal
-stay. Nothing in the forms argues for mixing the tiers.
+All weights, tiers and defaults are stored with each draft (section 10).
 
-A middle ground worth debating: tiers 0 to 2 as above but merge tier 3 into tier 2 with a per-tenant cap, since extras
-are low-stakes either way.
+### 5.5 Missing answers are not automatically neutral (PROPOSED TECHNICAL DEFAULT, AP10)
 
-All weights and the tier layout live in `assignment_drafts.priority_config`, so each draft records the settings that
-produced it and staff can re-run with different settings.
+The earlier draft said "missing data never earns or loses points, so it is neutral". That is **not true** for
+pairwise lines (cleanliness, bedtime, extras):
+
+- **Free filler effect.** If missing answers are simply left out of the average, a tenant with no cleanliness answer
+  placed with two "5"s leaves their averages unchanged, so the engine sees them as just as good as another "5".
+  Non-answerers become free filler for any apartment, and answerers who differ look *worse* than people who said
+  nothing.
+- **Incentive.** If students learned this, skipping a question would be "safer" than answering honestly.
+- **Unequal maximums.** A tenant who answered everything can earn up to 75 + 70 + 30 extra points; a non-answerer earns
+  0 there. Totals and averages are not comparable across drafts or groups with different coverage.
+- Requests (S2, S5, S9) are different: no request is not missing data. Tenants who make requests can gain points
+  others can't; that is intended, but it means requesters are favored and should be stated openly.
+
+**Proposed default:** when either side of a pairwise comparison is missing, that pair gets a fixed **0.5** (the
+same as "one step apart"). A non-answerer is then neither a magnet nor a repellent. A required field that is missing
+(for example the allergy Yes/No) is **never** treated as "No": it becomes a `missing_data` review item.
+
+**Report data coverage separately** from scores: the share of tenants who answered each field, overall and per plan,
+shown next to every draft summary.
+
+Fictional test cases for this are in section 17 (documented only; not implemented).
+
+### 5.6 Apartment-level compatibility (CONFIRMED PRODUCT DECISION, AC12)
+
+Because tenants choose bedrooms themselves (AC3), compatibility is scored across **all roommates in the apartment**.
+Scoring who would share a bedroom ("bedroom pairs") would require predicting choices the Lodge leaves to tenants. It
+is an unvalidated alternative, not an approved improvement.
 
 ## 6. Roommate request resolution (before any placement)
 
-Requests are typed by tenants as free text and stored with their **original wording** (`raw_text`, never
-overwritten). Before the solver runs, each request is resolved to a tenant or set aside:
+Requests are stored with their **original wording** (`raw_text`, never overwritten). Generated tenant codes don't
+resolve duplicate names: two different people can have the same name.
+
+**Identity rule (PROPOSED TECHNICAL DEFAULT, AP12).** A request is resolved automatically only if the normalized name
+(case-insensitive; "First Last" or "Last, First") matches **exactly one eligible tenant in the target term** (someone
+with a contract in that term). Zero matches, several matches, or only near matches all go to staff review. Where the
+Lodge's own resident ID is available, use it for identity across forms and terms (privacy doc D4).
 
 | Situation | Example | What happens | What staff see |
 |---|---|---|---|
-| Exact match (case-insensitive; "First Last" or "Last, First") | | `resolved` | Nothing unless other checks fail. |
-| Likely misspelling (one close match, small spelling distance) | E03 | **Suggested**, not auto-resolved. Not used until staff confirm. | Review item with the wording and the suggested tenant. |
-| Ambiguous (several people fit, e.g. first name only) | E06 | `ambiguous`, not used. The engine never guesses. | Review item listing every candidate. |
-| Person does not exist | E04 | `unresolved`, not used. | Review item with the original wording. |
-| Person is in the other building | E07 | `excluded`: cannot share (H1). | Review item with the reason. |
-| Person contracted a different plan | E08 | `excluded` for matching: would need a contract change, which the engine never makes. | Review item "contract change needed?". |
-| Blocked by a hard rule (must_not_share, confirmed allergy) or a self-reported allergy concern | E14, E02 | `excluded` with the rule or concern as reason. | Review item; the confidential reason is not shown. |
+| Exact, unique, eligible target-term match | | `resolved` | Nothing unless other checks fail. |
+| Exact match, but two or more people in the term have that name | | `ambiguous` | Review item listing every candidate. |
+| Likely misspelling (one close match) | E03 | Suggested only; not used until staff confirm. | Review item with wording and suggestion. |
+| Ambiguous (e.g. first name only) | E06 | `ambiguous`, not used. | Review item listing candidates. |
+| Person does not exist in the term | E04 | `unresolved`, not used. | Review item with the original wording. |
+| Person is in the other building | E07 | `excluded` (H1). | Review item with the reason. |
+| Person contracted a different plan | E08 | `excluded`; would need a contract change. | "Contract change needed?" |
+| Blocked by a hard rule or a self-reported allergy concern | E14, E02 | `excluded` with the rule or concern. | Review item; confidential reasons not shown. |
 
-After resolution, a request is **mutual** if both tenants resolved to each other, otherwise **one-way**. The schema
-already has the statuses (`pending`, `resolved`, `unresolved`, `ambiguous`, `excluded`) and the review queue types.
+Unresolved and excluded requests are **kept and shown with their reason** (AC6); they are never silently dropped.
 
 ## 7. Group requests bigger than the apartment
 
-A friend group (people linked by mutual requests) can be larger than the apartment, for example 5 people asking for
-a 2-bedroom that holds 4 (E01), or a group that fits by headcount but not once someone's private room is counted.
-The engine cannot place them all together. It does **not** silently split them: it chooses the split that scores
-best, keeps every request on record, and puts the group in the review queue with the proposed split. Under the
-per-tenant scoring in 5.1 a split of 4 + 1 scores more than 3 + 2 (see E01 below), so the solver will tend to leave one
-person out. Whether that is acceptable, and whether the separated person should be kept on the same floor as the
-group, are open questions.
+A mutual group can be larger than the apartment (E01: 5 people, W-STD-2 holds 4). The engine proposes the best-scoring
+split, keeps every request, and puts the group in the review queue. Under per-tenant scoring 4 + 1 (270) beats 3 + 2
+(180). QUESTION FOR LODGE CONFIRMATION: is 4 + 1 acceptable, and should the separated person stay on the same floor?
 
 ## 8. Wards
 
-- Each apartment belongs to one ward, and Samuel believes this is **fixed across all semesters** (Samuel/manager
-  input, to confirm). A tenant's ward is therefore decided by their placement.
-- A ward's apartments are physically close. A floor holds many apartments and can contain parts of several wards.
-  A ward spans both buildings: Samuel's ward is part of men's floor 4 plus part of women's floor 1 (Samuel/manager
-  input; one example, not a general rule).
-- **Proposal:** add `apartments.ward_id`, nullable until staff provide the mapping. The engine uses it for S3
-  (nearby = same floor and same ward) and shows it on every placement.
-- Wards do not change roommate eligibility; building and plan already do that.
-- **Ward requests** exist: Form 2's "other requests" box has the example "124th ward". The proposal treats them like
-  roommate names: staff confirm which ward a text means (`resolved`, `ambiguous`, `unresolved`), and only confirmed
-  requests score (S9). Free text that isn't about a ward is handled by staff, never by the engine.
-- Open: can tenants request a ward? Does ward size need balancing (each ~150+)? If ward is fixed per apartment and
-  apartments have fixed capacity, ward sizes may already be roughly fixed.
+- Samuel believes each apartment's ward is **fixed across semesters** (Samuel/manager input; QUESTION FOR LODGE
+  CONFIRMATION). A tenant's ward then follows from placement.
+- A floor can hold parts of several wards; a ward spans both buildings (Samuel's ward: part of men's floor 4 and part
+  of women's floor 1; one example, not a rule).
+- PROPOSED TECHNICAL DEFAULT: `apartments.ward_id`, nullable until staff provide the mapping; ward requests from
+  Form 2 free text are resolved by staff like names, and only confirmed ones score (S9).
+- QUESTION FOR LODGE CONFIRMATION: may tenants request a ward; do ward sizes need balancing?
 
-## 9. The search, explained simply
+## 9. The search, and what it can't prove (PROPOSED TECHNICAL DEFAULT, AP14)
 
-The engine builds a plan in steps. Everything below works inside the hard rules; any move that would break one is
-simply not considered.
+1. **Validate inputs**: locks obey the hard rules, requests resolved, enough slots per plan.
+2. **Keep locks.**
+3. **Seed continuity** (S1) where the plan still matches.
+4. **Seed mutual groups**, largest first; split oversized groups (section 7).
+5. **Fill the rest** greedily by points (renewal movers first).
+6. **Improve** with single moves and pair swaps within a plan while the tiered score improves, up to a time limit.
 
-1. **Validate inputs.** Check that locks obey the hard rules, that requests are resolved, and that each plan has
-   enough slots. Report shortfalls up front (E15).
-2. **Keep locks** exactly as they are.
-3. **Seed renewal stays.** Put renewing tenants who want to stay back in their current apartment when the plan
-   still matches.
-4. **Seed mutual groups.** Place each friend group together in one apartment of their plan, largest groups first;
-   groups that don't fit are split as in section 7.
-5. **Fill the rest.** Place each remaining tenant where they add the most points (renewal movers first, so they can
-   get a nearby apartment).
-6. **Improve.** Repeatedly try moving one tenant to another apartment, or swapping two tenants of the same plan, and
-   keep the change only if the tiered score gets better. Stop when no move helps or a time limit is reached.
+**Limitations.** Greedy placement plus single moves and pair swaps can miss valid solutions: some improvements, or
+even some feasible placements, need three or more tenants to move at once. So the engine must report two different
+things:
 
-This "seed then improve" approach is fast, simple to explain and easy to step through, but it cannot prove the
-result is the best possible plan.
-
-**Alternative: an exact solver** such as Google OR-Tools CP-SAT (open source, runs locally, has a .NET package). The
-rules and points are written as a mathematical model, and the solver searches for the best plan, proving optimality
-or reporting how far from optimal it might be. Tiers can be handled by solving tier 1, fixing that result, then
-solving tier 2, and so on.
-
-| | Seed then improve | Exact solver (CP-SAT) |
+| Status | Meaning | When it may be shown |
 |---|---|---|
-| Quality | Good, not provably best | Best or with a proven gap |
-| Explainability | Each step is traceable | Harder; explanations must be rebuilt after the fact |
-| Dependencies | None | One large native library |
-| Speed at ~1,100 tenants | Seconds (expected, not measured) | Probably fine because plans split the problem into 10 smaller ones, but not measured |
+| **Proven impossible** | No valid placement exists under the hard rules. | Only with a proof the engine can state: e.g. a plan has more contracts than slots ("at least 2 of these 10 cannot be placed"), or a tenant's restrictions exclude every apartment of their plan. |
+| **Search did not find a placement** | The search stopped without placing this tenant. A valid placement might still exist. | All other cases. Staff try manually; a later exact solver can settle it. |
 
-Either way: **no cloud services or external APIs**. Tenant data never leaves the machine. A reasonable path is to
-build seed-then-improve first and use CP-SAT later as a quality check on the same data.
+Likewise a draft's score is "best found", never "best possible", unless an exact solver proves it.
 
-## 10. Deterministic tie-breaking
+**Exact solver (later):** Google OR-Tools CP-SAT runs locally and can prove optimality or infeasibility; tiers become
+sequential solves. Tradeoffs: one large native dependency, harder explanations, speed not yet measured. No cloud
+services or external APIs either way (AC5).
 
-The same inputs and settings must always give the same draft (proposal):
+## 10. Tie-breaking and reproducibility (PROPOSED TECHNICAL DEFAULT, AP15)
 
-- Tenants are processed in a fixed order (by tenant code), apartments in a fixed order (by apartment number), and
-  moves are tried in a fixed order.
-- If two plans have exactly the same score, the engine keeps the first one found in that fixed order.
-- If any randomness is ever used for exploration, its seed is stored in `priority_config`, so the run can be repeated.
+- Fixed processing orders (tenant code, apartment number, move order); exact ties keep the first plan found.
+- Every generated draft records: the **algorithm version** (release number and git commit), the **configuration
+  version** (weights, tiers, missing-answer rule, time limit; stored in `priority_config` with a version and hash),
+  the **input version** (a hash or snapshot ID of the contracts, preferences, resolved requests, restrictions, locks
+  and apartments used), any **random seed**, and the generation start and end time.
+- Same input version + configuration version + algorithm version must give the same draft. A seed alone is not
+  enough.
+- Who stays unplaced in an oversubscribed plan (E15) is policy, not a tie-break: QUESTION FOR LODGE CONFIRMATION
+  (contract date, renewals first, staff choice). Until then the engine shows the shortfall and staff choose.
 
-Ordering by tenant code is fair only for true ties, not for scarce places. **Who stays unplaced when a plan is
-oversubscribed** (E15) is a policy decision: contract signing date, renewals first, or staff choice (open question).
-Until staff decide, the engine shows the shortfall and the tenants affected and lets staff choose.
+## 11. Explanations (PROPOSED TECHNICAL DEFAULT, AP16)
 
-## 11. Explanations
-
-Every placement carries a short explanation staff can read and, if wanted, share. Proposed contents:
-
-- **Points breakdown** by line (S1 to S10), including the points the tenant *could* have earned and didn't.
-- **Why not better:** the best-scoring alternative apartment for this tenant and the hard rule, lock or trade-off
-  that blocked it, for example "apartment 2620 would have kept your roommate request, but a staff restriction
-  applies" or "the only same-floor apartment of your plan is full of renewals who are staying".
+- Points breakdown by line, including points the tenant could have earned and didn't, and the data coverage used.
+- "Why not better": the best alternative apartment and the hard rule, lock or tradeoff that blocked it.
 - Confidential reasons are never shown, only that a staff rule applied.
 
-Example (fictional): *"Placed in 3616 (W-STD-3, floor 1). Renewal stay kept (+95). Mutual request with Parker
-Tumblewhump kept (+90). Bedtime: both known roommates in your bucket (+70). Tier 1: 185 of 185."*
+Example (fictional): *"Placed in 3616 (W-STD-3, floor 1). Continuity kept: renewal stay (+95). Mutual request with
+Parker Tumblewhump kept (+90). Bedtime: both roommates in your bucket (+70)."*
 
-## 12. Worked examples from the test data
+## 12. Later workflows (after automatic drafts)
 
-All tenants are fictional and come from the small seed (`db/seed_small.sql`, seed 2027); the answer key is
-`db/seed_small_answer_key.json`. Apartment numbers are from the small seed.
+**Improve existing draft (PROPOSED TECHNICAL DEFAULT, AP17).** Staff often start from a draft they already edited.
+This workflow takes that draft as the starting point, keeps locks and (by default) every manually placed tenant, and
+looks for improvements while **minimizing the number of tenants moved**. It does not apply changes by itself: it
+presents a short list of tradeoffs ("moving 2 tenants gains 2 mutual requests; moving 5 also fixes 3 bedtime
+mismatches"), and staff accept or reject each one. Each accepted change is recorded like any manual edit (AC7).
+
+**What-if alternatives and manager-approved preference adjustments** come later (AC4). Weight changes are made only by
+a manager, never learned automatically (AC5). Undone edits and edits without a reason are not used as evidence (AC10).
+
+## 13. Worked examples from the test data
+
+Small seed (`db/seed_small.sql`, seed 2027); answer key `db/seed_small_answer_key.json`. All fictional.
 
 | Case | Situation | How the design handles it |
 |---|---|---|
-| **E01** group too big | Five W-STD-2 tenants (FAKE-00001 to 00005) all request each other; W-STD-2 holds 4 (apartments 5555, 5842, 8314). | Cannot place all five together (H2). Split 4 + 1: the four each get 3 of 4 mutual partners = 67.5, total 270; the one gets 0. Split 3 + 2: 3 x 45 + 2 x 22.5 = 180. So 4 + 1 wins, and who is left out is only a tie-break, so it goes to the review queue. If one of them had a private room, an apartment would hold only 3 of them (2 + 1 + 1 slots), giving 3 + 2. |
-| **E02** animal vs allergy | Cyrus Puddlebeam (FAKE-00006, has an animal) and Vale Wafflebean (FAKE-00007, allergy restriction) request each other, M-STD-3. | The seed has no confirmation fields yet, so Vale's flag counts as **self-reported**: tier 0b keeps them apart (M-STD-3 has spare apartments), the mutual request is not honored, and a "needs staff review" item explains why. Their 2 x 90 mutual points can't outweigh tier 0b. If staff confirm Vale's documentation, H5 makes the separation hard. If Cyrus were a staying renewal, H9 would pin him and Vale would be placed elsewhere. Only a recorded staff override could put them together. |
-| **E03** misspelling | Harper Pebblebottom (FAKE-00008) wrote "Quinn Jelyberry"; Quinn Jellyberry (FAKE-00009) wrote Harper's name correctly. W-STD-3. | Suggest FAKE-00009 (one letter off) for staff confirmation. Once confirmed the request becomes mutual (90 each if placed together). Until then it is treated as one-way from Quinn's side only. |
-| **E06** ambiguous | Piper Kazoonugget (FAKE-00013) requested just "Jordan"; Jordan Wobblewick (FAKE-00014) and Jordan Moontooth (FAKE-00015) are both in M-FLAT-4. | `ambiguous`; no guessing. Review item lists both Jordans. |
-| **E07** cross-building | Indigo Crumpetbeam (FAKE-00016, W-STD-3) requests Lark Jellynugget (FAKE-00017, M-STD-3). | Excluded (H1, different building), shown with the reason. |
-| **E08** different plan | FAKE-00018 (M-STD-3) and FAKE-00019 (M-OTH-4) request each other. | Cannot share without a contract change (H1). Flagged "contract change needed?"; the engine never edits contracts. |
-| **E09** renewal pair stays | Wren Moontooth (FAKE-00020) and Parker Tumblewhump (FAKE-00021) live in 3616 (W-STD-3, floor 1), want to stay, and request each other. | Seeded first (step 3). Each earns S1 95 + S2 90 = 185 tier-1 points. The other 4 slots in 3616 are filled by others. |
-| **E10** renewal move | Kestrel Moonwhump (FAKE-00022) lives in 5793 (M-STD-3, men's floor 1) and wants to move. | Nearby means same floor and same ward. In the small seed the only other M-STD-3 apartment, 7679, is on floor 2, so S3 earns 0 there; the explanation says "no other M-STD-3 apartment on your floor". Whether an adjacent floor gets partial credit is open. (5793 also holds E12's locked tenant.) |
-| **E11** plan changed | Kestrel Kazootoes (FAKE-00023) lives in 7679 (M-STD-3, floor 2), wants to stay, but contracted M-FLAT-4. | Staying breaks H1, so S1 is impossible and the case is flagged. Treated as a move: M-FLAT-4 apartment 2620 is on the same floor, so it earns S3 (ward to be confirmed once mapped). |
-| **E14** restriction vs request | Logan Tumbletoes (FAKE-00027) requests Dakota Moontoes (FAKE-00026); staff confirmed they must not share. Both M-OTH-4. | H4 wins; the request is excluded with "blocked by a staff restriction". In the small seed M-OTH-4 has only one apartment (7215), so at most one of them can be placed at all. |
-| **E15** oversubscribed | M-OTH-4 has 10 contracts and 8 places (one apartment, 7215). | Tier 0: at most 8 placed; at least 2 unplaced, and because of E14 one of those must be FAKE-00026 or FAKE-00027. Nobody is moved to another plan. Staff see the shortfall and choose (section 10). In the large seed it is 91 contracts for 80 places. |
+| **E01** group too big | Five W-STD-2 tenants (FAKE-00001 to 00005) request each other; W-STD-2 holds 4 (apartments 5555, 5842, 8314). | Not all five fit (H2). 4 + 1 scores 270, 3 + 2 scores 180, so 4 + 1 is proposed; who is left out is only a tie-break, so it goes to review. |
+| **E02** animal vs allergy | Cyrus Puddlebeam (FAKE-00006, has an animal) and Vale Wafflebean (FAKE-00007, allergy flag) request each other, M-STD-3. | The seed has no confirmation fields, so Vale's flag counts as self-reported: tier 0b keeps them apart, the request is not honored, and a review item explains why. Confirmed documentation would make it hard (H5). Nothing locks Cyrus automatically. |
+| **E03** misspelling | Harper Pebblebottom (FAKE-00008) wrote "Quinn Jelyberry"; Quinn Jellyberry (FAKE-00009) wrote Harper correctly. | Suggest FAKE-00009 for staff confirmation; until then only Quinn's request counts (one-way). |
+| **E06** ambiguous | Piper Kazoonugget (FAKE-00013) wrote "Jordan"; two Jordans in M-FLAT-4. | `ambiguous`; review lists both. |
+| **E07** cross-building | Indigo Crumpetbeam (FAKE-00016, W-STD-3) requests Lark Jellynugget (FAKE-00017, M-STD-3). | Excluded (H1) with the reason. |
+| **E08** different plan | FAKE-00018 (M-STD-3) and FAKE-00019 (M-OTH-4) request each other. | Flagged "contract change needed?"; contracts are never edited. |
+| **E09** renewal pair stays | Wren Moontooth (FAKE-00020) and Parker Tumblewhump (FAKE-00021) live in 3616 and want to stay together. | Seeded first; each earns 95 + 90. Still only "preferred" unless the Lodge says stays are guaranteed (5.4). |
+| **E10** renewal move | Kestrel Moonwhump (FAKE-00022) in 5793 (M-STD-3, floor 1) wants to move. | The only other M-STD-3 apartment, 7679, is on floor 2: S3 earns 0, and the explanation says so. |
+| **E11** plan changed | Kestrel Kazootoes (FAKE-00023) lives in 7679 (M-STD-3) but contracted M-FLAT-4. | Staying breaks H1; flagged; treated as a move; 2620 (M-FLAT-4, floor 2) earns S3. |
+| **E14** restriction vs request | FAKE-00027 requests FAKE-00026; staff confirmed they must not share. M-OTH-4. | H4 wins; request excluded. M-OTH-4 has one apartment, so at most one of them can be placed. |
+| **E15** oversubscribed | M-OTH-4: 10 contracts, 8 places (7215). | "Proven impossible" for 2 of the 10 (count proof); because of E14 one of them must be FAKE-00026 or FAKE-00027. Which ones is a Lodge question. |
 
-## 13. Fairness
+## 14. Fairness
 
-- **Per-tenant points** so large groups and large apartments do not dominate (5.1).
-- **Missing optional data is neutral.** Nobody is rewarded or penalized for leaving optional fields blank.
-- **Extras are capped low** and never outrank roommate requests or renewals. "Similar" is not assumed to mean
-  "better roommates".
-- **Renewals get priority** (S1, S3, S10) per Samuel's weights. That is a deliberate advantage over new tenants and
-  should be a conscious team decision.
-- **No hidden rules.** Every point and every block is visible to staff; confidential reasons are summarized as
-  "staff restriction".
-- **Distribution, not just totals.** The draft summary should show how many tenants got none of their requests, not
-  only the total score. A "worst-off first" objective (maximize the minimum satisfaction) is a possible alternative to
-  discuss.
-- **Private rooms are paid**, so they reduce capacity for others by design. That is expected, not unfair.
+- Per-tenant points, so large groups don't dominate.
+- Missing answers handled explicitly (5.5), with coverage reported; they are not assumed neutral.
+- Extras are capped low; "similar" is not assumed to mean "better roommates".
+- Renewals get priority (S1, S3); how much is a QUESTION FOR LODGE CONFIRMATION.
+- No hidden rules; confidential reasons are shown only as "staff restriction".
+- Draft summaries show the distribution (how many got none of their requests), not only totals.
+- Private rooms are paid and reduce capacity by design.
 
-## 14. Proposed schema changes (awaiting team review; NOT applied)
+## 15. Success measures (CONFIRMED PRODUCT DECISION, AC11)
 
-None of these are in `db/schema.sql` yet. They follow the forms' real answer options.
+| Measure | Definition |
+|---|---|
+| **Placement acceptance** | Of the tenants **placed** in the original generated draft (the baseline, AC8), the percentage still in their proposed apartment in the final assignment after review. |
+| **Unplaced tenants** | Reported separately: count unplaced in the baseline and in the final assignment, with "proven impossible" vs "not found" (section 9). Acceptance never includes them, so it can't hide them. |
+| **Preventable corrections** | Changes that could have been avoided using information available when the draft was generated. PROPOSED TECHNICAL DEFAULT: counted from staff-chosen reasons ("Better tradeoff using existing information"); the system does not guess. |
+| **New-information changes** | Tracked separately (reason "New information"). |
+| **One-time exceptions** | Tracked separately. |
+| **Unexplained changes** | "No reason supplied" stays **unclassified**; never counted as preventable or as evidence. |
+| **Time** | Generation time (machine) and review time (staff, from opening the draft to finalizing it) measured separately and together. PROPOSED TECHNICAL DEFAULT: review time is wall-clock; active editing time is also logged if available. |
+
+Undone edits don't count as changes. **Aspiration:** about 90% placement acceptance and under 60 minutes total
+generation plus review. These are **hypotheses to validate** on fictional data first, not promised results.
+
+## 16. Proposed schema changes (PROPOSED TECHNICAL DEFAULT; NOT applied)
+
+None of these are in `db/schema.sql`. Workspace and history tables are listed in
+[manual-workspace.md](manual-workspace.md#5-schema-mapping-and-gaps).
 
 | Change | Purpose | Notes |
 |---|---|---|
-| `contracts.room_type ENUM('shared','private')` | Bedroom-slot capacity (4.1). | Assumes the private option is on the contract (open question). |
-| `contracts.linked_contract_id` (the same tenant's contract for the other semester) | S10 continuity for "Second Semester" signups. | Or a shared `lease_group_id`. |
-| `preferences.cleanliness TINYINT NULL CHECK (1-5)` | S8. | New. |
-| `preferences.bedtime ENUM('8-9pm','10-11pm','12-1am','after_1am') NULL` | S4. | Replaces the current `sleep_schedule` (`early`/`typical`/`late`/`unknown`), which doesn't match the form. |
-| `preferences.social_preference ENUM('shy','outgoing') NULL` | S6a. | Replaces the current three values (`outgoing`/`balanced`/`introverted`). |
-| `preferences.academic_stage ENUM('freshman','sophomore','junior','senior') NULL` | S6b. | Replaces the current five values; the form has no graduate option. |
-| `preferences.age`, `preferences.major` | S6c, S6d. | Already exist; no change. |
-| `ward_requests` table (contract, `raw_text`, `resolved_ward_id`, status, reason), like `roommate_requests` | S9. | Raw text kept only until staff review it (privacy doc D5). |
-| `wards` table + `apartments.ward_id` (nullable) | S3 nearby, S9, ward on each placement. | Null until staff give the mapping. |
-| `apartments.is_accessible BOOLEAN DEFAULT FALSE` | H6 and S7. | |
-| New `placement_restrictions` type `requires_accessible` | Staff-confirmed accessibility need (H6). | Reuses the confirmed_by / confirmed_at audit fields. |
-| Replace `preferences.animal_allergy_restriction` with `allergy_self_reported` (Yes on either form) plus `allergy_confirmed_by` / `allergy_confirmed_at` | 4.3, H5, tier 0b. | Records only that documentation was confirmed, never its content. |
-| `has_animal` gains `animal_approved_by` / `animal_approved_at` | H5, H9. | Staff-entered from the Reasonable Accommodation Process. |
-| New `placement_restrictions` type `allergy_override` (pair) | Staff override of H5 for a specific pair. | Recorded with who confirmed it and when. |
-| `capacity_override` in slots instead of headcount (or add a slot override) | Express "one bedroom unavailable" (E16). | Open question. |
-| `priority_config` JSON layout | Store weights, tiers, caps and any random seed per draft. | Column exists; the layout is new. |
+| `contracts.room_type ENUM('shared','private')` | Slot capacity (4.1). | Lodge question: is it on the contract? |
+| `contracts.linked_contract_id` (or a `lease_group_id`) | S1 continuity source (b). | |
+| `preferences.cleanliness TINYINT NULL` (1-5) | S8. | |
+| `preferences.bedtime ENUM('8-9pm','10-11pm','12-1am','after_1am') NULL` | S4. | Replaces `sleep_schedule`. |
+| `preferences.social_preference ENUM('shy','outgoing') NULL` | S6a. | Replaces three values. |
+| `preferences.academic_stage ENUM('freshman','sophomore','junior','senior') NULL` | S6b. | Replaces five values. |
+| `ward_requests` (contract, `raw_text`, `resolved_ward_id`, status, reason) | S9. | Mirrors `roommate_requests`. |
+| `wards` + `apartments.ward_id` (nullable) | S3, S9. | Null until staff give the mapping. |
+| `apartments.is_accessible BOOLEAN DEFAULT FALSE` | H6, S7. | |
+| `placement_restrictions` types `requires_accessible`, `allergy_override` | H6, H5 override. | Reuse confirmed_by / confirmed_at. |
+| `allergy_self_reported` + `allergy_confirmed_by/_at` (replacing `animal_allergy_restriction`) | 4.3. | No details stored. |
+| `has_animal` + `animal_approved_by/_at` | 4.3. | Staff-entered. |
+| `capacity_override` in slots (or an extra slot override) | E16. | Lodge question. |
+| `tenants.lodge_resident_id` (nullable, unique) | Identity (AP12). | Only if the Lodge provides it. |
+| `assignment_drafts.algorithm_version`, `config_version`, `input_hash` | Reproducibility (AP15). | `priority_config` already exists. |
 | **Not added:** gender, birthday, emails, address, phone, emergency contact, parking, comments, marketing source, waitlist | | See [data-privacy.md](data-privacy.md). |
 
-The fictional seeds still use the current columns; they will be updated together with the schema once the team
-approves these changes.
+## 17. Fictional test cases to implement later (documented only)
 
-## 15. Open questions for Lodge staff
+These are **specifications** for later automated tests. **No test code is added in this change.** All inputs are
+fictional. Expected results assume the proposed defaults (AP8, AP10, AP12, AP14); if the team changes a default, the
+expected result changes with it.
 
-1. **Private rooms:** is the private option written on the contract? Is the price different? Can it change mid-term?
-2. **Odd numbers:** may a shared-rate tenant end up alone in a bedroom?
-3. **Capacity override:** should it be in people or in bedrooms?
-4. **Apartment counts:** how many apartments of each plan, on which floors? (The test data uses placeholders.)
-5. **Wards:** is each apartment's ward really fixed across semesters? Can we get the apartment-to-ward list? Can
-   tenants request a ward? Do ward sizes need balancing?
-6. **Nearby:** same floor and same ward is full credit. Does an adjacent floor, or the same ward on another floor,
-   count for anything?
-7. **Renewal "move":** if a tenant asks to move, is putting them back in the same apartment forbidden or just
-   unrewarded?
-8. **Allergies:** do they ever matter between neighbouring apartments, or only inside one apartment? Who may approve
-   an override? How will staff mark documentation as confirmed (who, in which screen), and what happens if it
-   arrives after a draft or after assignments are final? Is a Yes without documentation treated as anything today?
-9. **Accessible apartments:** must they stay empty for possible late applicants, or may others use them when no one
-    needs them? Who confirms an accessibility need?
-10. **Oversubscription:** when a plan has more contracts than places, who is left unplaced, and what happens to them?
-11. **Groups too big:** is 4 + 1 acceptable, or would staff rather split more evenly? Should the separated person stay
-    on the same floor as the group?
-12. **Extras:** for age, introvert/outgoing, major and academic stage, does "match" mean similar? Should tenants say
-    whether they want similar roommates?
-13. **Terms:** is a tenant returning in Fall after Spring a "renewal"? Are Spring contracts different in any way?
-14. **Second semester signups:** does the Lodge promise the same apartment for both semesters, or only the discount?
-15. **Animals:** can staff give us a yes/no list of approved animals from the Reasonable Accommodation Process each
-    term? Are any animals other than approved assistance animals/ESAs allowed? Does "will not move the ESA tenant
-    out" also cover renewals across terms (our reading, H9), and may an approved holder still choose to move?
-16. **Ward requests:** how often are they honored today, and are there wards students may not request?
-17. **Both roommate fields:** if Form 1 and Form 2 name different people, which one counts?
-18. **Cleanliness and bedtime:** do staff already use these answers when matching by hand, and how much?
+| ID | Fictional input | Expected behaviour |
+|---|---|---|
+| TM1 | Apartment with A (cleanliness 5) and B (5). Candidates: C (cleanliness missing), D (1), E (5). | E is preferred over C, and C over D. C is **not** scored as equal to E (no free filler). |
+| TM2 | Same as TM1 but with the "omit missing" rule switched on in the config. | Documents the bias: C and E tie. Used to show why AP10 was proposed. |
+| TM3 | Tenant F with every optional answer missing; two otherwise identical apartments. | Same score for both; the fixed tie-break decides; the explanation says "no answers to compare". |
+| TM4 | 10 tenants: 6 in W-STD-2 (5 answered cleanliness) and 4 in W-STD-3 (2 answered). | Coverage report: cleanliness 70% overall, 83% W-STD-2, 50% W-STD-3, shown separately from scores. |
+| TM5 | Tenant G whose allergy Yes/No is missing in the import. | Not treated as "No"; a `missing_data` review item is created. |
+| TM6 | Renewing tenant H with no current apartment in the import. | No continuity points; `missing_data` review item. |
+| TM7 | Two drafts of the same term with different coverage. | Each draft summary shows coverage next to its score. |
+| TI1 | Two tenants named "Sage Copperbean" in the target term; a request for "Sage Copperbean". | `ambiguous`, both listed; not auto-resolved. |
+| TI2 | One "Sage Copperbean" in the target term, another only in a past term. | Resolved to the target-term tenant. |
+| TC1 | Renewing tenant J who also signed for two semesters stays in place. | Continuity counts 95 once, listing both reasons. |
+| TS1 | A plan with 10 contracts and 8 slots. | Exactly 2 unplaced, shown as "proven impossible (count)". |
+| TS2 | A case where the only valid plan needs a three-way rotation and the search doesn't find it. | Unplaced tenant shown as "search did not find a placement", never as "impossible". |
+| TR1 | The same inputs, config and algorithm version run twice. | Identical drafts; recorded versions identical. |
 
-## 16. Review questions for other AI tools
+## 18. Questions for Lodge confirmation
 
-Paste this document and ask:
+1. **Guaranteed vs preferred stays:** which renewal stays are guaranteed (to become locks) and which only preferred?
+2. **Two-semester signups:** is the same apartment promised for both semesters, or only the discount?
+3. **Private rooms:** is the option on the contract? May a shared-rate tenant end up alone in a bedroom?
+4. **Capacity override:** in people or in bedrooms?
+5. **Apartment counts** per plan and floor (the test data uses placeholders).
+6. **Wards:** fixed across semesters? The apartment-to-ward list? May tenants request a ward? Balance sizes?
+7. **Nearby:** does an adjacent floor, or the same ward on another floor, count for anything?
+8. **Renewal "move":** is putting them back in the same apartment forbidden or just unrewarded?
+9. **Allergies and animals:** the documentation rule; who confirms and who may override; timing when documentation
+   arrives late; whether neighbouring apartments matter; whether a Yes without documentation counts for anything.
+10. **Animal holders:** are they always kept in place when they renew (including across terms)? May they choose to move?
+    Can staff provide a yes/no list each term? Are other animals allowed?
+11. **Accessible apartments:** must they stay reserved even when nobody needs them? Who confirms a need?
+12. **Oversubscription:** who is left unplaced, and what happens to them?
+13. **Groups too big:** 4 + 1 or a more even split? Keep the separated person on the same floor?
+14. **Extras:** does "match" mean similar (age, shy/outgoing, major, school year)?
+15. **Terms:** is a tenant returning in Fall after Spring a renewal? Are Spring contracts different?
+16. **Ward requests:** how often are they honored today? Any wards students may not request?
+17. **Both roommate fields:** if Form 1 and Form 2 differ, which counts?
+18. **Cleanliness and bedtime:** do staff use these answers today when matching by hand?
+19. **Resident ID:** can exports include the Lodge's own resident ID?
 
-1. Is per-tenant scoring (rather than per pair) the right unit? What does it get wrong for groups and chains of
-   requests?
-2. Do the tiers in 5.4 match the stated weights, or do they distort them? Would you merge or split any tier?
-3. Give a concrete scenario where the tiered score produces a result the manager would clearly dislike.
-4. Is "hard rule after confirmed documentation, tier 0b before" the right model for a .98 allergy weight and the Lodge's ESA policy?
-5. Is the bedroom-slot capacity model correct and complete? What cases does it miss?
-6. What is the risk that seed-then-improve gets stuck in a poor plan, and what cheap fixes exist?
-7. Is the E01 outcome (4 + 1 split) reasonable? What scoring change would favor 3 + 2, and should it?
-8. Is the sleep compatibility scale (1 / 0.5 / 0) sensible? What about tenants with "unknown"?
-9. What fairness problems does this design have that it does not mention?
-10. What should a staff-facing explanation always include, and what must it never reveal?
-11. For about 1,100 tenants and 200 apartments, is an exact solver (CP-SAT) clearly worth it from the start?
-12. Is the revised weight table in 5.1 reasonable? Should cleanliness be above bedtime, or even in tier 1?
-13. Is "half credit for one step apart" right for a 1-5 cleanliness scale, or should a 1 next to a 5 be penalized?
-14. Should two-semester continuity (S10) be a hard rule?
-15. Which items in the decision summary (section 0) marked "Recommended default" should really be team decisions?
+## 19. Review questions for other AI tools
+
+1. Is per-tenant scoring the right unit? What does it get wrong for groups and chains of requests?
+2. Do the tiers distort Samuel's weights? Give a scenario the manager would clearly dislike.
+3. Is the tier-1 tradeoff (5.4) acceptable if stays are only "preferred"?
+4. Does the 0.5 missing-answer credit (5.5) remove the free-filler effect without creating a new bias?
+5. Is merging renewal stay and two-semester continuity (AP8) the right fix for double counting?
+6. Is the bedroom-slot capacity check correct and complete?
+7. What cheap search improvements (e.g. three-way rotations) reduce "search did not find a placement"?
+8. What must the reproducibility record contain to replay a draft exactly?
+9. How should "improve existing draft" weigh moves against gains?
+10. Are the success measures gameable? How could acceptance look good while outcomes are bad?
+11. Which PROPOSED TECHNICAL DEFAULTS should really be Lodge questions, or vice versa?
