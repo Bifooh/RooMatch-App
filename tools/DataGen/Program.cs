@@ -103,7 +103,7 @@ static class Program
         // resident_capacity is an explicit per-plan value, set here on purpose and NEVER computed from bedrooms.
         // Source: Samuel/manager input, 2026-10-31 ("LODGE UPDATE"): every bedroom holds 2 by default, giving the
         // per-plan numbers below, so capacity_is_assumption = FALSE for them. Men's Standard 3bd (M-STD-3) was left
-        // blank: 6 is ASSUMED (2 per bedroom) and stays flagged TRUE until staff confirm it.
+        // blank at first and then confirmed as 6 by Samuel/manager the same day, so all 10 plans are confirmed.
         // Private bedrooms (a tenant paying for a bedroom + bathroom alone) lower the real headcount per apartment;
         // that is not modelled in the seeds yet (see docs/assignment-algorithm.md, proposed schema changes).
         var defs = new (string Code, string Name, string Variant, int Bed, decimal Bath, string Cat, int Cap, bool Assumed)[] {
@@ -113,7 +113,7 @@ static class Program
             ("W-FLAT-4", "Women's - Flat. 4 Bedroom, 4 Bath",              "flat",               4, 4.0m, "women", 8, false),
             ("W-STH-4",  "Women's - Standard Townhome. 4 Bedroom, 4 Bath", "standard_townhome",  4, 4.0m, "women", 8, false),
             ("W-OTH-4",  "Women's - Oversized Townhome. 4 Bedroom, 4 Bath","oversized_townhome", 4, 4.0m, "women", 8, false),
-            ("M-STD-3",  "Men's - Standard. 3 Bedroom, 3 Bath",            "standard",           3, 3.0m, "men",   6, true),
+            ("M-STD-3",  "Men's - Standard. 3 Bedroom, 3 Bath",            "standard",           3, 3.0m, "men",   6, false),
             ("M-FLAT-4", "Men's - Flat. 4 Bedroom, 4 Bath",                "flat",               4, 4.0m, "men",   8, false),
             ("M-STH-4",  "Men's - Standard Townhome. 4 Bedroom, 4 Bath",   "standard_townhome",  4, 4.0m, "men",   8, false),
             ("M-OTH-4",  "Men's - Oversized Townhome. 4 Bedroom, 4 Bath",  "oversized_townhome", 4, 4.0m, "men",   8, false),
@@ -121,7 +121,8 @@ static class Program
         int pid = 1;
         foreach (var d in defs)
             Plans.Add(new FloorPlan(pid++, d.Code, d.Name, d.Variant, d.Bed, d.Bath, d.Cat, d.Cap, d.Assumed,
-                d.Assumed ? "Real plan name; resident_capacity ASSUMED (2 per bedroom); left blank in Samuel/manager input 2026-10-31, confirm with staff"
+                d.Assumed ? "Real plan name; resident_capacity ASSUMED, confirm with staff"
+                : d.Code == "M-STD-3" ? "Real plan name; resident_capacity confirmed by Samuel/manager 2026-10-31"
                           : "Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)"));
         const string Oversubscribed = "M-OTH-4";
 

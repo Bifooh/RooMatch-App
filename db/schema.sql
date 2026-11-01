@@ -51,7 +51,7 @@ CREATE TABLE terms (
 -- Plan names/bed/bath are the real Lodge plans (6 women's, 4 men's).
 -- housing_category is 'women' or 'men' (confirmed by Samuel).
 -- resident_capacity: Samuel/manager input (2 per bedroom by default);
--- M-STD-3 is still an assumption (capacity_is_assumption = TRUE).
+-- all 10 plans confirmed (capacity_is_assumption = FALSE).
 -- ---------------------------------------------------------------------
 CREATE TABLE floor_plans (
   floor_plan_id            INT UNSIGNED NOT NULL AUTO_INCREMENT,

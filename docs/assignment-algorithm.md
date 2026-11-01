@@ -117,7 +117,7 @@ Every bedroom holds **2 people by default** (Samuel/manager input). That gives t
 | Women's Flat 4bd/4ba (W-FLAT-4) | 4 | 8 | Samuel/manager input |
 | Women's Standard Townhome 4bd/4ba (W-STH-4) | 4 | 8 | Samuel/manager input |
 | Women's Oversized Townhome 4bd/4ba (W-OTH-4) | 4 | 8 | Samuel/manager input |
-| Men's Standard 3bd/3ba (M-STD-3) | 3 | **6 (assumed)** | Left blank by Samuel; **open question** |
+| Men's Standard 3bd/3ba (M-STD-3) | 3 | 6 | Samuel/manager input (confirmed 2026-10-31) |
 | Men's Flat 4bd/4ba (M-FLAT-4) | 4 | 8 | Samuel/manager input |
 | Men's Standard Townhome 4bd/4ba (M-STH-4) | 4 | 8 | Samuel/manager input |
 | Men's Oversized Townhome 4bd/4ba (M-OTH-4) | 4 | 8 | Samuel/manager input |
@@ -440,35 +440,34 @@ approves these changes.
 
 ## 15. Open questions for Lodge staff
 
-1. **Men's Standard 3bd/3ba capacity:** 6 (2 per bedroom) is assumed. Correct?
-2. **Private rooms:** is the private option written on the contract? Is the price different? Can it change mid-term?
-3. **Odd numbers:** may a shared-rate tenant end up alone in a bedroom?
-4. **Capacity override:** should it be in people or in bedrooms?
-5. **Apartment counts:** how many apartments of each plan, on which floors? (The test data uses placeholders.)
-6. **Wards:** is each apartment's ward really fixed across semesters? Can we get the apartment-to-ward list? Can
+1. **Private rooms:** is the private option written on the contract? Is the price different? Can it change mid-term?
+2. **Odd numbers:** may a shared-rate tenant end up alone in a bedroom?
+3. **Capacity override:** should it be in people or in bedrooms?
+4. **Apartment counts:** how many apartments of each plan, on which floors? (The test data uses placeholders.)
+5. **Wards:** is each apartment's ward really fixed across semesters? Can we get the apartment-to-ward list? Can
    tenants request a ward? Do ward sizes need balancing?
-7. **Nearby:** same floor and same ward is full credit. Does an adjacent floor, or the same ward on another floor,
+6. **Nearby:** same floor and same ward is full credit. Does an adjacent floor, or the same ward on another floor,
    count for anything?
-8. **Renewal "move":** if a tenant asks to move, is putting them back in the same apartment forbidden or just
+7. **Renewal "move":** if a tenant asks to move, is putting them back in the same apartment forbidden or just
    unrewarded?
-9. **Allergies:** do they ever matter between neighbouring apartments, or only inside one apartment? Who may approve
+8. **Allergies:** do they ever matter between neighbouring apartments, or only inside one apartment? Who may approve
    an override? How will staff mark documentation as confirmed (who, in which screen), and what happens if it
    arrives after a draft or after assignments are final? Is a Yes without documentation treated as anything today?
-10. **Accessible apartments:** must they stay empty for possible late applicants, or may others use them when no one
+9. **Accessible apartments:** must they stay empty for possible late applicants, or may others use them when no one
     needs them? Who confirms an accessibility need?
-11. **Oversubscription:** when a plan has more contracts than places, who is left unplaced, and what happens to them?
-12. **Groups too big:** is 4 + 1 acceptable, or would staff rather split more evenly? Should the separated person stay
+10. **Oversubscription:** when a plan has more contracts than places, who is left unplaced, and what happens to them?
+11. **Groups too big:** is 4 + 1 acceptable, or would staff rather split more evenly? Should the separated person stay
     on the same floor as the group?
-13. **Extras:** for age, introvert/outgoing, major and academic stage, does "match" mean similar? Should tenants say
+12. **Extras:** for age, introvert/outgoing, major and academic stage, does "match" mean similar? Should tenants say
     whether they want similar roommates?
-14. **Terms:** is a tenant returning in Fall after Spring a "renewal"? Are Spring contracts different in any way?
-15. **Second semester signups:** does the Lodge promise the same apartment for both semesters, or only the discount?
-16. **Animals:** can staff give us a yes/no list of approved animals from the Reasonable Accommodation Process each
+13. **Terms:** is a tenant returning in Fall after Spring a "renewal"? Are Spring contracts different in any way?
+14. **Second semester signups:** does the Lodge promise the same apartment for both semesters, or only the discount?
+15. **Animals:** can staff give us a yes/no list of approved animals from the Reasonable Accommodation Process each
     term? Are any animals other than approved assistance animals/ESAs allowed? Does "will not move the ESA tenant
     out" also cover renewals across terms (our reading, H9), and may an approved holder still choose to move?
-17. **Ward requests:** how often are they honored today, and are there wards students may not request?
-18. **Both roommate fields:** if Form 1 and Form 2 name different people, which one counts?
-19. **Cleanliness and bedtime:** do staff already use these answers when matching by hand, and how much?
+16. **Ward requests:** how often are they honored today, and are there wards students may not request?
+17. **Both roommate fields:** if Form 1 and Form 2 name different people, which one counts?
+18. **Cleanliness and bedtime:** do staff already use these answers when matching by hand, and how much?
 
 ## 16. Review questions for other AI tools
 

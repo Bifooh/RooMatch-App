@@ -1,6 +1,6 @@
 # Lodge tenant-assignment MVP
 
-**All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are explicit per-plan values from Samuel/manager input (2 per bedroom by default); only Men's Standard 3bd (M-STD-3 = 6) is still an assumption.
+**All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are explicit per-plan values from Samuel/manager input (2 per bedroom by default); all 10 plans are confirmed.
 Real-data deployment needs its own security and operations review.
 
 This repo holds the MySQL schema and a reproducible fictional dataset (deliverable 1), plus the app skeleton:
@@ -81,7 +81,7 @@ npm run build    # type-check + production build into dist/
 - **Frontend:** stock `create-vite` react-ts template (Vite 8, React, oxlint), no UI library or state library yet.
 - **Tests:** xUnit project with one smoke test; it doesn't reference the API yet. The rules engine will likely be its own class library referenced by both API and tests.
 - **Telemetry:** set `DOTNET_CLI_TELEMETRY_OPTOUT=1` when running the .NET CLI.
-- **Capacity (2026-10-31, "LODGE UPDATE"):** Samuel/manager input gives every bedroom 2 people by default: 4/4/6/8/8/8 for the women's plans and 8 for men's Flat, Standard Townhome and Oversized Townhome. Men's Standard 3bd was left blank, so M-STD-3 = 6 is **assumed** and is the only plan with `capacity_is_assumption = TRUE`. Values stay explicit per plan (not a bedrooms x 2 formula).
+- **Capacity (2026-10-31, "LODGE UPDATE"):** Samuel/manager input gives every bedroom 2 people by default: 4/4/6/8/8/8 for the women's plans and 8 for men's Flat, Standard Townhome and Oversized Townhome. Men's Standard 3bd (M-STD-3) was first left blank, then confirmed as 6 by Samuel/manager the same day, so all 10 plans have `capacity_is_assumption = FALSE`. Values stay explicit per plan (not a bedrooms x 2 formula).
 - **Private rooms:** some students pay extra for a bedroom + bathroom to themselves, so an apartment's real headcount varies (e.g. 3 people in a 2-bedroom). The design doc proposes counting capacity in bedroom slots (shared = 1, private = 2, apartment = 2 x bedrooms). Not in the schema or seeds yet.
 - **Terms:** the Lodge has only Fall, Winter and Spring terms (no Summer). The seeds contain F2026 and W2027.
 - **Wards:** everyone is LDS; the Lodge is one stake of about 6 wards (150+ people each). Each apartment's ward is believed to be fixed across semesters (to confirm), so a tenant's ward follows from placement. A floor can hold parts of several wards and a ward spans both buildings. `apartments.ward_id` is proposed, not added.
@@ -142,15 +142,15 @@ Verified on MySQL Community Server 8.0.40: the schema and both seeds load cleanl
 | W-FLAT-4 | Women's - Flat. 4 Bedroom, 4 Bath | flat | 8 | manager input |
 | W-STH-4 | Women's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | manager input |
 | W-OTH-4 | Women's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | manager input |
-| M-STD-3 | Men's - Standard. 3 Bedroom, 3 Bath | standard | 6 | **assumption** (left blank) |
+| M-STD-3 | Men's - Standard. 3 Bedroom, 3 Bath | standard | 6 | confirmed by Samuel/manager |
 | M-FLAT-4 | Men's - Flat. 4 Bedroom, 4 Bath | flat | 8 | manager input |
 | M-STH-4 | Men's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | manager input |
 | M-OTH-4 | Men's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | manager input |
 
 The men's building has no 2-bedroom plans. Capacities come from Samuel/manager input (2026-10-31): every bedroom
 holds 2 by default. They are hard-coded per plan in `tools/DataGen/Program.cs` and stored explicitly in
-`floor_plans.resident_capacity`; they are never computed from bedrooms. Nine plans have `capacity_is_assumption = FALSE`.
-M-STD-3 has `TRUE` because Samuel left it blank; 6 is assumed. **Confirm M-STD-3 with Lodge staff.** These are default
+`floor_plans.resident_capacity`; they are never computed from bedrooms. All 10 plans have `capacity_is_assumption = FALSE`
+(M-STD-3 = 6 confirmed by Samuel/manager 2026-10-31). These are default
 maximums: private rooms (not modelled yet) lower the real headcount.
 
 ### Apartment counts per plan (seed 2027)
@@ -208,7 +208,7 @@ The **small** set has no random animals or allergies, so every conflict in it is
 
 ## ASSUMPTIONS to confirm with Lodge staff
 
-1. **Men's Standard 3bd (M-STD-3) holds 6** (2 per bedroom). Samuel left this one blank; the other nine capacities are manager input.
+1. **Capacities are confirmed for all 10 plans** (Samuel/manager input 2026-10-31, M-STD-3 = 6 included). Private rooms can still lower an apartment's real headcount.
 2. **Housing category (women or men) is on the floor plan,** and each category has its own building. A tenant's eligibility comes from their contracted plan.
 3. A tenant has exactly one contract per term.
 4. "Current apartment" for a renewal means the apartment they live in during the previous term.
