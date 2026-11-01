@@ -1,16 +1,19 @@
 # Lodge tenant-assignment MVP
 
-**All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are explicit per-plan values: "likely 2 per bedroom" per Samuel, confirmed only for M-FLAT-4.
+**All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are explicit per-plan values from Samuel/manager input (2 per bedroom by default); only Men's Standard 3bd (M-STD-3 = 6) is still an assumption.
 Real-data deployment needs its own security and operations review.
 
 This repo holds the MySQL schema and a reproducible fictional dataset (deliverable 1), plus the app skeleton:
-a Vite + React + TypeScript frontend and an ASP.NET Core (.NET 8) minimal API. The rules engine and solver come later.
+a Vite + React + TypeScript frontend and an ASP.NET Core (.NET 8) minimal API. The rules engine and solver come later;
+their plain-English draft design is **[docs/assignment-algorithm.md](docs/assignment-algorithm.md)** (hard rules, the
+points score built from Samuel's weights, worked examples and open questions).
 Everything runs locally: no cloud services, telemetry or external APIs.
 
 ## Contents
 
 | Path | What it is |
 |---|---|
+| `docs/assignment-algorithm.md` | DRAFT design of the assignment engine, in plain English, for team and AI review. No code yet. |
 | `db/schema.sql` | MySQL 8 schema: 11 tables plus the `v_apartment_capacity` view. Re-running it drops and recreates the tables. |
 | `db/seed_small.sql` | 32 tenants and 16 apartments (capacity 99), seed 2027. It needs at least 32 tenants to fit every edge case. |
 | `db/seed_large.sql` | 1,100 tenants and 202 apartments (capacity 1,253), seed 2027. |
@@ -76,11 +79,17 @@ npm run build    # type-check + production build into dist/
 - **Frontend:** stock `create-vite` react-ts template (Vite 8, React, oxlint), no UI library or state library yet.
 - **Tests:** xUnit project with one smoke test; it doesn't reference the API yet. The rules engine will likely be its own class library referenced by both API and tests.
 - **Telemetry:** set `DOTNET_CLI_TELEMETRY_OPTOUT=1` when running the .NET CLI.
-- **Capacity (2026-10-31):** Samuel said capacity is likely 2 per bedroom. Values stay explicit per plan (not a bedrooms x 2 formula), so a plan that differs can simply be edited. Only M-FLAT-4 is marked confirmed.
+- **Capacity (2026-10-31, "LODGE UPDATE"):** Samuel/manager input gives every bedroom 2 people by default: 4/4/6/8/8/8 for the women's plans and 8 for men's Flat, Standard Townhome and Oversized Townhome. Men's Standard 3bd was left blank, so M-STD-3 = 6 is **assumed** and is the only plan with `capacity_is_assumption = TRUE`. Values stay explicit per plan (not a bedrooms x 2 formula).
+- **Private rooms:** some students pay extra for a bedroom + bathroom to themselves, so an apartment's real headcount varies (e.g. 3 people in a 2-bedroom). The design doc proposes counting capacity in bedroom slots (shared = 1, private = 2, apartment = 2 x bedrooms). Not in the schema or seeds yet.
+- **Terms:** the Lodge has only Fall, Winter and Spring terms (no Summer). The seeds contain F2026 and W2027.
+- **Wards:** everyone is LDS; the Lodge is one stake of about 6 wards (150+ people each). Each apartment's ward is believed to be fixed across semesters (to confirm), so a tenant's ward follows from placement. A floor can hold parts of several wards and a ward spans both buildings. `apartments.ward_id` is proposed, not added.
+- **Accessible apartments:** a few first-floor apartments are handicap-adapted. `apartments.is_accessible` and a staff-confirmed accessibility need are proposed, not added.
+- **Priorities:** Samuel gave weights (allergy .98 treated as a hard rule, renewal stay .95, mutual requests .90, nearby renewal moves .85, sleep .70, one-way requests .55, extras .30). How they become points is in the design doc.
+- **Proposed schema changes are deliberately not applied yet** (private room, ward, accessibility, allergy override). They are listed in the design doc for team review.
 - **Edge cases after the capacity change:** M-OTH-4 now holds 8, so oversubscribing it (E15) needs at least 9 contracts there. To keep the small set at exactly 32 tenants, E05 (non-mutual pair) and E14 (must-not-share pair) moved from M-STH-4 and M-FLAT-4 into M-OTH-4; their meaning is unchanged. E01 (5 in W-STD-2, cap 4) and E16 (override 5 < plan 6) still hold as-is.
 - **Spare capacity rule unchanged:** per plan, the apartments needed plus max(1, ceil(10%)). With the larger capacities this gives 13.9% overall spare in the large set (more than 10% because of per-plan rounding).
 - **Config precedence:** environment variables override `appsettings.Local.json`.
-- **Git author:** no git identity was configured, so the initial commit uses the local (repo-only) placeholder `Samuel Pereira <samuel@localhost>`. Fix with `git config user.email ...` and amend if wanted.
+- **Git author:** the first two commits use the placeholder `Samuel Pereira <samuel@localhost>`; later commits use Samuel's real address (repo-local `git config`). History was not rewritten.
 
 ## Design rules the schema enforces
 
@@ -120,25 +129,26 @@ mysql -t lodge_mvp < db/sanity_checks.sql
 
 Verified on MySQL Community Server 8.0.40: the schema and both seeds load cleanly.
 
-## Floor plans (real names; capacity 2 per bedroom, mostly unconfirmed)
+## Floor plans (real names; capacity from Samuel/manager input)
 
 | Code | Plan (exact name) | Variant | Resident capacity | Status |
 |---|---|---|---|---|
-| W-STD-2 | Women's - Standard. 2 Bedroom, 2 Bath | standard | 4 | assumption |
-| W-OVR-2 | Women's - Oversized. 2 Bedroom, 2 Bath | oversized | 4 | assumption |
-| W-STD-3 | Women's - Standard. 3 Bedroom, 3 Bath | standard | 6 | assumption |
-| W-FLAT-4 | Women's - Flat. 4 Bedroom, 4 Bath | flat | 8 | assumption |
-| W-STH-4 | Women's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | assumption |
-| W-OTH-4 | Women's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | assumption |
-| M-STD-3 | Men's - Standard. 3 Bedroom, 3 Bath | standard | 6 | assumption |
-| M-FLAT-4 | Men's - Flat. 4 Bedroom, 4 Bath | flat | 8 | **confirmed by Samuel** |
-| M-STH-4 | Men's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | assumption |
-| M-OTH-4 | Men's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | assumption |
+| W-STD-2 | Women's - Standard. 2 Bedroom, 2 Bath | standard | 4 | manager input |
+| W-OVR-2 | Women's - Oversized. 2 Bedroom, 2 Bath | oversized | 4 | manager input |
+| W-STD-3 | Women's - Standard. 3 Bedroom, 3 Bath | standard | 6 | manager input |
+| W-FLAT-4 | Women's - Flat. 4 Bedroom, 4 Bath | flat | 8 | manager input |
+| W-STH-4 | Women's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | manager input |
+| W-OTH-4 | Women's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | manager input |
+| M-STD-3 | Men's - Standard. 3 Bedroom, 3 Bath | standard | 6 | **assumption** (left blank) |
+| M-FLAT-4 | Men's - Flat. 4 Bedroom, 4 Bath | flat | 8 | manager input |
+| M-STH-4 | Men's - Standard Townhome. 4 Bedroom, 4 Bath | standard_townhome | 8 | manager input |
+| M-OTH-4 | Men's - Oversized Townhome. 4 Bedroom, 4 Bath | oversized_townhome | 8 | manager input |
 
-The men's building has no 2-bedroom plans. Samuel said capacity is likely 2 residents per bedroom. Capacities are still
-hard-coded per plan in `tools/DataGen/Program.cs` and stored explicitly in `floor_plans.resident_capacity`; they are
-never computed from bedrooms. M-FLAT-4 has `capacity_is_assumption = FALSE`. The other nine have `TRUE`, with the note
-"likely 2 per bedroom per Samuel, unconfirmed". **Confirm them with Lodge staff.**
+The men's building has no 2-bedroom plans. Capacities come from Samuel/manager input (2026-10-31): every bedroom
+holds 2 by default. They are hard-coded per plan in `tools/DataGen/Program.cs` and stored explicitly in
+`floor_plans.resident_capacity`; they are never computed from bedrooms. Nine plans have `capacity_is_assumption = FALSE`.
+M-STD-3 has `TRUE` because Samuel left it blank; 6 is assumed. **Confirm M-STD-3 with Lodge staff.** These are default
+maximums: private rooms (not modelled yet) lower the real headcount.
 
 ### Apartment counts per plan (seed 2027)
 
@@ -174,13 +184,13 @@ W-STD-3 capacity is one less than apartments x 6 because of the E16 override.
 | E07 | A cross-category request: a W-STD-3 tenant names an M-STD-3 tenant (different building). |
 | E08 | A mutual request between M-STD-3 and M-OTH-4 (different contracted plans). |
 | E09 | Two renewing tenants who want to stay together in their W-STD-3 apartment. |
-| E10 | A renewing M-STD-3 tenant who wants to move (prefer the same building and floor, then an adjacent floor). |
+| E10 | A renewing M-STD-3 tenant who wants to move (prefer the same floor and same ward; adjacent floor is an unconfirmed fallback). |
 | E11 | A renewing tenant who wants to stay, but lives in M-STD-3 and contracted M-FLAT-4. |
 | E12 | A staff-confirmed `required_floor = 1`, with a manager-locked pre-placement on floor 1. |
 | E13 | A manager-locked renewal stay (W-OVR-2). |
 | E14 | A staff-confirmed `must_not_share_with` pair in M-OTH-4 (was M-FLAT-4, moved for the same reason), where one of them requested the other. |
 | E15 | One oversubscribed plan, **M-OTH-4**: 10 contracts for 8 places (1 apartment) in small, 91 for 80 (10 apartments) in large. Total capacity is still enough overall (99 for 32 tenants in small, 1,253 for 1,100 in large). |
-| E16 | One W-STD-3 apartment with `capacity_override = 5` (assumed plan capacity 6). |
+| E16 | One W-STD-3 apartment with `capacity_override = 5` (plan capacity 6). |
 
 The 2 locked assignments live in draft 1, "Manager pre-placements (fictional)".
 
@@ -195,15 +205,18 @@ The **small** set has no random animals or allergies, so every conflict in it is
 
 ## ASSUMPTIONS to confirm with Lodge staff
 
-1. **Resident capacity is likely 2 per bedroom (per Samuel), confirmed only for M-FLAT-4 (8).** The other nine plan capacities in the table above are unconfirmed.
+1. **Men's Standard 3bd (M-STD-3) holds 6** (2 per bedroom). Samuel left this one blank; the other nine capacities are manager input.
 2. **Housing category (women or men) is on the floor plan,** and each category has its own building. A tenant's eligibility comes from their contracted plan.
 3. A tenant has exactly one contract per term.
 4. "Current apartment" for a renewal means the apartment they live in during the previous term.
 5. `has_animal` means an animal will live in the apartment. An allergy restriction is a hard rule against sharing with that tenant. Whether it also applies to neighbouring apartments is unknown.
 6. Placement restrictions (`required_floor`, `excluded_floor`, required or excluded apartment, `must_not_share_with`) are hard rules and are entered only after staff confirm them.
-7. **"Nearby" means the same building and floor, then an adjacent floor.** Distance within a floor is unknown.
+7. **"Nearby" for renewal moves means the same floor and the same ward** (Samuel/manager input). Whether an adjacent floor counts at all is unknown, and the apartment-to-ward mapping is not available yet.
 8. **How many apartments of each plan are on each floor is unknown.** The seeds spread each plan across floors 1 to 4 in turn, and the apartment numbers are random.
 9. Roommate requests are stored one row per named person. Group requests are treated as the sum of those rows.
-10. The term names and dates are fictional placeholders.
-11. Priorities and weights are not decided. `assignment_drafts.priority_config` is free-form JSON until the team picks an order.
+10. The term dates are fictional placeholders. Terms are Fall, Winter and Spring only (Samuel/manager input).
+11. Samuel gave priority weights; turning them into points (tiers, caps) is a draft in `docs/assignment-algorithm.md`, not decided. `assignment_drafts.priority_config` stays free-form JSON until then.
 12. Lower-priority fields (age, social preference, major, academic stage) are optional and only soft preferences. Similar values don't mean better roommates.
+13. **The private-room option is part of the contract** (presumed; not yet in the schema).
+14. **Each apartment's ward is fixed across semesters** (Samuel believes so; to confirm). Ward mapping not provided yet.
+15. **Tenants with a staff-confirmed accessibility need must get a handicap-adapted apartment.** Whether those apartments must stay reserved otherwise is unknown.
