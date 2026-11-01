@@ -18,12 +18,6 @@ public sealed record CreateDraftRequest(
     bool CopyLocks,
     string? Notes);
 
-public sealed record MoveRequest(uint ContractId, uint? ApartmentId);
-
-public sealed record SwapRequest(uint ContractIdA, uint ContractIdB);
-
-public sealed record LockRequest(uint ContractId, bool Locked, string LockedBy);
-
 public sealed record ValidationIssueDto(
     string Code,
     string Severity,
@@ -34,8 +28,6 @@ public sealed record ValidationIssueDto(
     string? ApartmentNumber,
     uint? RelatedContractId,
     string? RelatedTenantCode);
-
-public sealed record MutationResult(bool Ok, IReadOnlyList<ValidationIssueDto> Issues);
 
 public sealed record RoommateRequestInfo(
     uint RequestId,

@@ -20,6 +20,7 @@ ready for confidential student data.
 | `docs/manual-assignment.md` | What the manual workspace implements, validation issue codes, and explicit limitations vs proposals. |
 | `docs/data-privacy.md` | DRAFT privacy and security plan: field-by-field table for the Lodge's two forms, what is never stored, roles, encryption, retention, import, logging, questions for the Lodge. |
 | `db/schema.sql` | MySQL 8 schema: 11 tables plus the `v_apartment_capacity` view. Re-running it drops and recreates the tables. |
+| `db/migrations/` | Incremental SQL (e.g. `001_assignment_change_history.sql`). Apply after schema/seed; does not wipe data. |
 | `db/seed_small.sql` | 32 tenants and 16 apartments (capacity 99), seed 2027. It needs at least 32 tenants to fit every edge case. |
 | `db/seed_large.sql` | 1,100 tenants and 202 apartments (capacity 1,253), seed 2027. |
 | `db/seed_*_answer_key.json` | The deliberate edge cases (tenant codes, apartments, expected handling) plus the random noise added to the large set. Use these in tests. |
