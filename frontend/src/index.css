@@ -1,3 +1,233 @@
-body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
-table { border-collapse: collapse; } td, th { padding: .3rem .8rem; border: 1px solid #ccc; text-align: left; }
-.ok { color: #176c2e; } .bad { color: #b00020; }
+:root {
+  --ink: #1c2430;
+  --muted: #5a6573;
+  --line: #d5dbe3;
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --accent: #1f5c4d;
+  --accent-soft: #e4f0ec;
+  --bad: #8f1d2c;
+  --bad-bg: #f8e8ea;
+  --ok: #176c2e;
+  --ok-bg: #e7f5eb;
+  --warn: #8a5a00;
+  --info: #345;
+  --focus: #2a6fdb;
+  font-family: "Source Sans 3", "Segoe UI", "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #e8eef6 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #e7f1ec 0%, transparent 50%),
+    var(--bg);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  font-size: clamp(1.6rem, 2.5vw, 2.1rem);
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.6rem;
+}
+
+.lede {
+  margin: 0;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.operator {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  min-width: 14rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+input, select, button {
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+input:focus, select:focus, button:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+button {
+  cursor: pointer;
+  background: var(--accent-soft);
+  border-color: #b7d0c7;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.controls, .filters, .action-row, .issues-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+}
+
+.controls label, .filters label, .action-row label {
+  min-width: 12rem;
+}
+
+.banner {
+  padding: 0.65rem 0.85rem;
+  border-radius: 4px;
+  margin: 0 0 0.85rem;
+}
+
+.banner.ok { background: var(--ok-bg); color: var(--ok); }
+.banner.bad { background: var(--bad-bg); color: var(--bad); }
+.banner.info { background: #eef2f7; color: var(--info); }
+
+.create-draft, .action-panel, .issues, .meta, .apt-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.create-draft {
+  display: grid;
+  gap: 0.65rem;
+  max-width: 36rem;
+}
+
+.meta p { margin: 0.2rem 0; color: var(--muted); }
+.meta strong { color: var(--ink); }
+
+.issues-bar {
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.issue-list, .limitations {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.issue-list .error { color: var(--bad); }
+.issue-list .warning { color: var(--warn); }
+.issue-list .info { color: var(--muted); }
+
+.requests { margin-top: 0.75rem; overflow-x: auto; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+th, td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 860px) {
+  .workspace-grid { grid-template-columns: 1fr; }
+}
+
+.apt-list, .unassigned-list, .occ-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.apt-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+  font-size: 0.92rem;
+}
+
+.tenant {
+  width: 100%;
+  text-align: left;
+  background: #f7f9fb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  justify-content: space-between;
+}
+
+.tenant.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.tenant .plan {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.empty, .busy {
+  color: var(--muted);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
