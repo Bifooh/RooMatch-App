@@ -95,6 +95,8 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [changeReason, setChangeReason] = useState('')
+  const [matching, setMatching] = useState(false)
+  const [matchSummary, setMatchSummary] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTerms()
@@ -318,9 +320,11 @@ export default function App() {
   }
 
   async function onGenerateMatch() {
-    if (termId === '' || busy || !operator.trim()) return
+    if (termId === '' || busy || matching || !operator.trim()) return
+    setMatching(true)
     setBusy(true)
     setBanner(null)
+    setMatchSummary(null)
     try {
       const res = await runAutoMatch(termId, {
         draftName: null,
@@ -332,20 +336,22 @@ export default function App() {
       if (!res.ok || !res.draft) {
         const detail = res.issues?.length
           ? res.issues.map((i) => `${i.code}: ${i.message}`).join(' · ')
-          : (res.error ?? 'Match failed')
+          : (res.error ?? res.summary?.headline ?? 'Match failed')
         setBanner({ kind: 'bad', text: detail })
         return
       }
       const list = await fetchDrafts(termId)
       setDrafts(list)
       setDraftId(res.draft.draftId)
-      setBanner({
-        kind: 'ok',
-        text: `Generated draft #${res.draft.draftId}: placed ${res.placedCount}, still unassigned ${res.stillUnassigned}, mutual pairs ${res.mutualPairsPlaced}.`,
-      })
+      const headline =
+        res.summary?.headline ??
+        `Draft #${res.draft.draftId}: placed ${res.placedCount}, unassigned ${res.stillUnassigned}, mutual ${res.mutualPairsPlaced}, one-way ${res.oneWayJoinsPlaced ?? 0}.`
+      setMatchSummary(headline)
+      setBanner({ kind: 'ok', text: headline })
     } catch (err) {
       setBanner({ kind: 'bad', text: err instanceof Error ? err.message : 'Match failed' })
     } finally {
+      setMatching(false)
       setBusy(false)
     }
   }
@@ -446,12 +452,19 @@ export default function App() {
         <button
           type="button"
           onClick={() => void onGenerateMatch()}
-          disabled={termId === '' || busy || !operator.trim()}
-          title="Creates a new draft (copies the selected draft if any) and greedily places unassigned contracts"
+          disabled={termId === '' || busy || matching || !operator.trim()}
+          aria-busy={matching}
+          title="Creates a new draft (copies the selected draft if any) and greedily places unassigned contracts. Disabled while a match is running."
         >
-          Generate draft (v1 match)
+          {matching ? 'Generating draft…' : 'Generate draft (v1 match)'}
         </button>
       </section>
+
+      {matchSummary && (
+        <p className="banner info" role="status">
+          Last match: {matchSummary}
+        </p>
+      )}
 
       {showCreate && (
         <form className="create-draft" onSubmit={onCreateDraft}>

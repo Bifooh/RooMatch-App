@@ -120,12 +120,23 @@ export type HistoryItem = {
   createdAt: string
 }
 
+export type AutoMatchSummary = {
+  placed: number
+  stillUnassigned: number
+  mutualPairsPlaced: number
+  oneWayJoinsPlaced: number
+  skipped: number
+  headline: string
+}
+
 export type AutoMatchResult = {
   ok: boolean
   draft?: DraftInfo | null
   placedCount: number
   stillUnassigned: number
   mutualPairsPlaced: number
+  oneWayJoinsPlaced?: number
+  summary?: AutoMatchSummary
   placements: unknown[]
   skips: { contractId: number; tenantCode: string; reason: string }[]
   notes: string[]

@@ -130,17 +130,28 @@ app.MapPost("/api/drafts/{draftId:int}/undo", async (uint draftId, UndoRequest b
 });
 
 app.MapPost("/api/terms/{termId:int}/match",
-    async (uint termId, AutoMatchRequest body, AutoMatchService svc, CancellationToken ct) =>
+    async (uint termId, AutoMatchRequest? body, AutoMatchService svc, CancellationToken ct) =>
     {
         try
         {
             var result = await svc.RunAsync(termId, body, ct);
-            return result.Ok ? Results.Ok(result) : Results.Json(result, statusCode: 409);
+            if (result.Ok) return Results.Ok(result);
+            // 400 for bad input; 409 for draft/validation conflicts
+            var code = result.Issues.FirstOrDefault()?.Code ?? "";
+            var status = code is "BODY_REQUIRED" or "OPERATOR_REQUIRED" or "DRAFT_NAME_TOO_LONG" or "TERM_NOT_FOUND"
+                or "DRAFT_NAME_REQUIRED"
+                ? 400
+                : 409;
+            return Results.Json(result, statusCode: status);
         }
         catch (Exception)
         {
-            return Results.Json(new { ok = false, error = "Auto-match failed due to a server or database error." },
-                statusCode: 500);
+            return Results.Json(new
+            {
+                ok = false,
+                error = "Auto-match failed due to a server or database error. Check MySQL and that migration 001 is applied.",
+                summary = new { headline = "Auto-match failed unexpectedly." },
+            }, statusCode: 500);
         }
     });
 

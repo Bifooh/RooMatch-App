@@ -4,8 +4,8 @@ namespace Lodge.Core.Services;
 
 /// <summary>
 /// Deterministic V1 placement plan over a <see cref="DraftState"/> clone.
-/// Prefers mutual <c>resolved</c> roommate pairs; soft-ignores pending/unresolved/ambiguous.
-/// Does not invent identities or optimize weights.
+/// Prefers mutual <c>resolved</c> roommate pairs, then soft one-way resolved joins;
+/// soft-ignores pending/unresolved/ambiguous. Does not invent identities or optimize weights.
 /// </summary>
 public static class AutoMatchPlanner
 {
@@ -17,6 +17,7 @@ public static class AutoMatchPlanner
         IReadOnlyList<Step> Steps,
         IReadOnlyList<Skip> Skips,
         int MutualPairsPlaced,
+        int OneWayJoinsPlaced,
         IReadOnlyList<string> Notes);
 
     public static Plan Build(DraftState initial)
@@ -27,7 +28,7 @@ public static class AutoMatchPlanner
         var skips = new List<Skip>();
         var notes = new List<string>
         {
-            "V1 auto-match: greedy fill by floor plan; prefer mutual resolved roommate pairs.",
+            "V1 auto-match: greedy fill by floor plan; prefer mutual resolved roommate pairs, then soft one-way joins.",
             "Unresolved / ambiguous / pending / excluded requests are soft-ignored (no invented matches).",
             "Every placement must still pass AssignmentValidator (capacity, plan, locks, restrictions).",
         };
@@ -37,6 +38,7 @@ public static class AutoMatchPlanner
             .ToDictionary(g => g.Key, g => g.First().ContractId);
 
         var mutualPairs = FindMutualResolvedPairs(state, tenantToContract);
+        var mutualSet = mutualPairs.ToHashSet();
         notes.Add($"Mutual resolved pairs considered: {mutualPairs.Count}.");
 
         var mutualPlaced = 0;
@@ -61,21 +63,16 @@ public static class AutoMatchPlanner
                 continue;
             }
 
-            uint? targetApt = null;
-            string reason;
-
             if (asgA is not null && asgB is null)
             {
-                targetApt = asgA.ApartmentId;
-                reason = $"Join mutual roommate {ca.TenantCode} in apartment.";
-                if (TryPlace(state, validator, steps, skips, b, cb, targetApt.Value, reason))
+                if (TryPlace(state, validator, steps, skips, b, cb, asgA.ApartmentId,
+                        $"Join mutual roommate {ca.TenantCode} in apartment."))
                     mutualPlaced++;
             }
             else if (asgB is not null && asgA is null)
             {
-                targetApt = asgB.ApartmentId;
-                reason = $"Join mutual roommate {cb.TenantCode} in apartment.";
-                if (TryPlace(state, validator, steps, skips, a, ca, targetApt.Value, reason))
+                if (TryPlace(state, validator, steps, skips, a, ca, asgB.ApartmentId,
+                        $"Join mutual roommate {cb.TenantCode} in apartment."))
                     mutualPlaced++;
             }
             else
@@ -88,10 +85,53 @@ public static class AutoMatchPlanner
                     continue;
                 }
 
-                reason = $"Mutual pair with {cb.TenantCode}.";
+                var reason = $"Mutual pair with {cb.TenantCode}.";
                 var okA = TryPlace(state, validator, steps, skips, a, ca, apt.ApartmentId, reason);
                 var okB = TryPlace(state, validator, steps, skips, b, cb, apt.ApartmentId, reason);
                 if (okA && okB) mutualPlaced++;
+            }
+        }
+
+        // Soft one-way: resolved A→B without reverse. Prefer joining into B's apartment.
+        var oneWays = FindOneWayResolved(state, tenantToContract, mutualSet);
+        notes.Add($"One-way resolved preferences considered: {oneWays.Count}.");
+        var oneWayJoins = 0;
+        foreach (var (requesterContractId, targetContractId) in oneWays
+                     .OrderBy(x => x.Requester)
+                     .ThenBy(x => x.Target))
+        {
+            if (!state.Contracts.TryGetValue(requesterContractId, out var req)
+                || !state.Contracts.TryGetValue(targetContractId, out var tgt))
+                continue;
+
+            if (req.FloorPlanId != tgt.FloorPlanId)
+                continue; // soft skip — different plan cannot share
+
+            if (state.AssignmentsByContract.ContainsKey(requesterContractId))
+                continue;
+
+            state.AssignmentsByContract.TryGetValue(targetContractId, out var tgtAsg);
+
+            if (tgtAsg is not null)
+            {
+                if (TryPlace(state, validator, steps, skips, requesterContractId, req, tgtAsg.ApartmentId,
+                        $"One-way preference: join {tgt.TenantCode}."))
+                    oneWayJoins++;
+                continue;
+            }
+
+            // Both unassigned: seat together if 2 slots exist (target first, then requester).
+            var apt = FindApartmentWithFreeSlots(state, req.FloorPlanId, needed: 2);
+            if (apt is null) continue;
+
+            var placedTarget = TryPlace(state, validator, steps, skips, targetContractId, tgt, apt.ApartmentId,
+                $"Anchor for one-way request from {req.TenantCode}.");
+            var placedReq = TryPlace(state, validator, steps, skips, requesterContractId, req, apt.ApartmentId,
+                $"One-way preference: join {tgt.TenantCode}.");
+            if (placedReq) oneWayJoins++;
+            else if (!placedTarget)
+            {
+                // neither placed — nothing to count
             }
         }
 
@@ -113,17 +153,13 @@ public static class AutoMatchPlanner
                 "Greedy fill (same floor plan, first apartment with space).");
         }
 
-        return new Plan(steps, skips, mutualPlaced, notes);
+        return new Plan(steps, skips, mutualPlaced, oneWayJoins, notes);
     }
 
     public static IReadOnlyList<(uint A, uint B)> FindMutualResolvedPairs(
         DraftState state, IReadOnlyDictionary<uint, uint> tenantToContract)
     {
-        var resolved = state.RoommateRequests
-            .Where(r => string.Equals(r.Status, "resolved", StringComparison.OrdinalIgnoreCase)
-                        && r.ResolvedTenantId is not null)
-            .ToList();
-
+        var resolved = Resolved(state);
         var pairs = new HashSet<(uint, uint)>();
         foreach (var req in resolved)
         {
@@ -145,6 +181,34 @@ public static class AutoMatchPlanner
 
         return pairs.Select(p => (p.Item1, p.Item2)).ToList();
     }
+
+    public static IReadOnlyList<(uint Requester, uint Target)> FindOneWayResolved(
+        DraftState state,
+        IReadOnlyDictionary<uint, uint> tenantToContract,
+        IReadOnlySet<(uint A, uint B)> mutualPairs)
+    {
+        var list = new List<(uint, uint)>();
+        foreach (var req in Resolved(state))
+        {
+            if (!tenantToContract.TryGetValue(req.ResolvedTenantId!.Value, out var targetContractId))
+                continue;
+            if (targetContractId == req.ContractId) continue;
+
+            var lo = Math.Min(req.ContractId, targetContractId);
+            var hi = Math.Max(req.ContractId, targetContractId);
+            if (mutualPairs.Contains((lo, hi))) continue;
+
+            list.Add((req.ContractId, targetContractId));
+        }
+
+        return list;
+    }
+
+    private static List<RoommateRequestState> Resolved(DraftState state) =>
+        state.RoommateRequests
+            .Where(r => string.Equals(r.Status, "resolved", StringComparison.OrdinalIgnoreCase)
+                        && r.ResolvedTenantId is not null)
+            .ToList();
 
     private static bool TryPlace(
         DraftState state,
@@ -179,7 +243,7 @@ public static class AutoMatchPlanner
             .Where(a => a.IsActive && a.FloorPlanId == floorPlanId)
             .Select(a => (Apt: a, Free: a.EffectiveCapacity - state.OccupantsOf(a.ApartmentId).Count()))
             .Where(x => x.Free >= needed)
-            .OrderByDescending(x => x.Free) // pack into roomier first so pairs fit
+            .OrderByDescending(x => x.Free)
             .ThenBy(x => x.Apt.ApartmentId)
             .Select(x => x.Apt)
             .FirstOrDefault();

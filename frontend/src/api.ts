@@ -135,8 +135,8 @@ export async function runAutoMatch(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const parsed = await res.json().catch(() => ({ ok: false, issues: [], notes: [], skips: [], placements: [] }))
-  if (!res.ok && parsed.ok !== false) {
+  const parsed = await res.json().catch(() => null)
+  if (!parsed || typeof parsed !== 'object') {
     return {
       ok: false,
       placedCount: 0,
@@ -146,8 +146,19 @@ export async function runAutoMatch(
       skips: [],
       notes: [],
       issues: [],
-      error: parsed.error ?? `Match failed (${res.status})`,
+      error: `Match failed (${res.status}): empty or invalid response.`,
     }
   }
-  return parsed as AutoMatchResult
+  const result = parsed as AutoMatchResult
+  if (!res.ok && result.ok !== false) {
+    result.ok = false
+    result.error = result.error ?? result.summary?.headline ?? `Match failed (${res.status})`
+  }
+  if (!result.ok && !result.error) {
+    result.error =
+      result.issues?.[0]?.message ??
+      result.summary?.headline ??
+      `Match failed (${res.status})`
+  }
+  return result
 }

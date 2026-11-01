@@ -37,8 +37,25 @@ public class AutoMatchPlannerTests
 
         var plan = AutoMatchPlanner.Build(state);
         Assert.Equal(1, plan.MutualPairsPlaced); // one mutual pair
+        Assert.Equal(0, plan.OneWayJoinsPlaced);
         Assert.Equal(3, plan.Steps.Count);
 
+        var aptA = plan.Steps.First(s => s.ContractId == 1).ApartmentId;
+        var aptB = plan.Steps.First(s => s.ContractId == 2).ApartmentId;
+        Assert.Equal(aptA, aptB);
+    }
+
+    [Fact]
+    public void OneWayResolved_JoinsTarget_WhenPossible()
+    {
+        var state = EmptyPlanState();
+        // A → B only (not mutual)
+        state.RoommateRequests.Add(new RoommateRequestState(
+            1, 1, "FAKE-A", "Ada Alpha", "Bea Beta", "resolved", null, ResolvedTenantId: 20));
+
+        var plan = AutoMatchPlanner.Build(state);
+        Assert.Equal(0, plan.MutualPairsPlaced);
+        Assert.True(plan.OneWayJoinsPlaced >= 1);
         var aptA = plan.Steps.First(s => s.ContractId == 1).ApartmentId;
         var aptB = plan.Steps.First(s => s.ContractId == 2).ApartmentId;
         Assert.Equal(aptA, aptB);
@@ -57,6 +74,7 @@ public class AutoMatchPlannerTests
 
         var plan = AutoMatchPlanner.Build(state);
         Assert.Equal(0, plan.MutualPairsPlaced);
+        Assert.Equal(0, plan.OneWayJoinsPlaced);
         // Still places greedily into capacity
         Assert.Equal(3, plan.Steps.Count);
     }

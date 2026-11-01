@@ -50,10 +50,12 @@ public class AutoMatchServiceTests
             "Fictional Matcher",
             "v1 test"));
 
-        Assert.True(result.Ok, result.Issues.FirstOrDefault()?.Message);
+        Assert.True(result.Ok, result.Error ?? result.Issues.FirstOrDefault()?.Message);
         Assert.NotNull(result.Draft);
         Assert.True(result.PlacedCount > 0);
+        Assert.Equal(result.PlacedCount, result.Summary.Placed);
         Assert.Contains(result.Notes, n => n.Contains("V1 auto-match"));
+        Assert.Contains($"Draft #{result.Draft!.DraftId}", result.Summary.Headline);
 
         var hist = await assignments.ListHistoryAsync(result.Draft!.DraftId);
         Assert.True(hist.Count >= result.PlacedCount);
