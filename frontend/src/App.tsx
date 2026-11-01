@@ -6,6 +6,7 @@ import {
   fetchTerms,
   fetchWorkspace,
   moveTenant,
+  runAutoMatch,
   setLock,
   swapTenants,
   undoChange,
@@ -316,6 +317,39 @@ export default function App() {
     }
   }
 
+  async function onGenerateMatch() {
+    if (termId === '' || busy || !operator.trim()) return
+    setBusy(true)
+    setBanner(null)
+    try {
+      const res = await runAutoMatch(termId, {
+        draftName: null,
+        copyFromDraftId: draftId === '' ? null : draftId,
+        copyLocks: true,
+        performedBy: operator.trim(),
+        notes: 'auto-match v1',
+      })
+      if (!res.ok || !res.draft) {
+        const detail = res.issues?.length
+          ? res.issues.map((i) => `${i.code}: ${i.message}`).join(' · ')
+          : (res.error ?? 'Match failed')
+        setBanner({ kind: 'bad', text: detail })
+        return
+      }
+      const list = await fetchDrafts(termId)
+      setDrafts(list)
+      setDraftId(res.draft.draftId)
+      setBanner({
+        kind: 'ok',
+        text: `Generated draft #${res.draft.draftId}: placed ${res.placedCount}, still unassigned ${res.stillUnassigned}, mutual pairs ${res.mutualPairsPlaced}.`,
+      })
+    } catch (err) {
+      setBanner({ kind: 'bad', text: err instanceof Error ? err.message : 'Match failed' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const errorIssues = workspace?.issues.filter((i) => i.severity === 'error') ?? []
   const warnIssues = workspace?.issues.filter((i) => i.severity === 'warning') ?? []
   const infoIssues = workspace?.issues.filter((i) => i.severity === 'info') ?? []
@@ -408,6 +442,14 @@ export default function App() {
           disabled={draftId === '' || busy}
         >
           Refresh
+        </button>
+        <button
+          type="button"
+          onClick={() => void onGenerateMatch()}
+          disabled={termId === '' || busy || !operator.trim()}
+          title="Creates a new draft (copies the selected draft if any) and greedily places unassigned contracts"
+        >
+          Generate draft (v1 match)
         </button>
       </section>
 

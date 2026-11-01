@@ -1,4 +1,4 @@
-import type { DraftInfo, HistoryItem, MutationResult, TermInfo, Workspace } from './types'
+import type { AutoMatchResult, DraftInfo, HistoryItem, MutationResult, TermInfo, Workspace } from './types'
 
 async function parseJson<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => null)
@@ -118,4 +118,36 @@ export async function undoChange(
     return { ok: false, issues: [], error: parsed.error ?? `Undo failed (${res.status})` }
   }
   return parsed as MutationResult
+}
+
+export async function runAutoMatch(
+  termId: number,
+  body: {
+    draftName: string | null
+    copyFromDraftId: number | null
+    copyLocks: boolean
+    performedBy: string
+    notes: string | null
+  },
+): Promise<AutoMatchResult> {
+  const res = await fetch(`/api/terms/${termId}/match`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const parsed = await res.json().catch(() => ({ ok: false, issues: [], notes: [], skips: [], placements: [] }))
+  if (!res.ok && parsed.ok !== false) {
+    return {
+      ok: false,
+      placedCount: 0,
+      stillUnassigned: 0,
+      mutualPairsPlaced: 0,
+      placements: [],
+      skips: [],
+      notes: [],
+      issues: [],
+      error: parsed.error ?? `Match failed (${res.status})`,
+    }
+  }
+  return parsed as AutoMatchResult
 }

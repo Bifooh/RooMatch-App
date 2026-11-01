@@ -262,27 +262,31 @@ public sealed class AssignmentService
             }
             else if (existing is null)
             {
+                var source = string.IsNullOrWhiteSpace(request.Source) ? "manual" : request.Source.Trim();
                 await using var ins = new MySqlCommand(
                     """
                     INSERT INTO assignments
                       (draft_id, term_id, contract_id, apartment_id, is_locked, locked_by, locked_at, source)
-                    VALUES (@draft, @term, @contract, @apt, FALSE, NULL, NULL, 'manual')
+                    VALUES (@draft, @term, @contract, @apt, FALSE, NULL, NULL, @source)
                     """, conn, tx);
                 ins.Parameters.AddWithValue("@draft", draftId);
                 ins.Parameters.AddWithValue("@term", state.TermId);
                 ins.Parameters.AddWithValue("@contract", request.ContractId);
                 ins.Parameters.AddWithValue("@apt", request.ApartmentId.Value);
+                ins.Parameters.AddWithValue("@source", source);
                 await ins.ExecuteNonQueryAsync(ct);
             }
             else
             {
+                var source = string.IsNullOrWhiteSpace(request.Source) ? "manual" : request.Source.Trim();
                 await using var upd = new MySqlCommand(
                     """
                     UPDATE assignments
-                    SET apartment_id = @apt, source = 'manual', updated_at = CURRENT_TIMESTAMP
+                    SET apartment_id = @apt, source = @source, updated_at = CURRENT_TIMESTAMP
                     WHERE draft_id = @draft AND contract_id = @contract
                     """, conn, tx);
                 upd.Parameters.AddWithValue("@apt", request.ApartmentId.Value);
+                upd.Parameters.AddWithValue("@source", source);
                 upd.Parameters.AddWithValue("@draft", draftId);
                 upd.Parameters.AddWithValue("@contract", request.ContractId);
                 await upd.ExecuteNonQueryAsync(ct);
@@ -796,7 +800,7 @@ public sealed class AssignmentService
                          """
                          SELECT rr.request_id, rr.contract_id, t.tenant_code,
                                 CONCAT(t.first_name, ' ', t.last_name) AS requester_name,
-                                rr.raw_text, rr.status, rr.exclusion_reason
+                                rr.raw_text, rr.status, rr.exclusion_reason, rr.resolved_tenant_id
                          FROM roommate_requests rr
                          JOIN contracts c ON c.contract_id = rr.contract_id
                          JOIN tenants t ON t.tenant_id = c.tenant_id
@@ -814,7 +818,8 @@ public sealed class AssignmentService
                     r.GetString("requester_name"),
                     r.GetString("raw_text"),
                     r.GetString("status"),
-                    r.IsDBNull(r.GetOrdinal("exclusion_reason")) ? null : r.GetString("exclusion_reason")));
+                    r.IsDBNull(r.GetOrdinal("exclusion_reason")) ? null : r.GetString("exclusion_reason"),
+                    r.IsDBNull(r.GetOrdinal("resolved_tenant_id")) ? null : r.GetUInt32("resolved_tenant_id")));
             }
         }
 

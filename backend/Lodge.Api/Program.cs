@@ -12,6 +12,7 @@ var connectionString = builder.Configuration.GetConnectionString("Lodge")
     ?? throw new InvalidOperationException("ConnectionStrings:Lodge is not configured. Copy appsettings.Local.example.json to appsettings.Local.json.");
 builder.Services.AddMySqlDataSource(connectionString);
 builder.Services.AddSingleton<AssignmentService>();
+builder.Services.AddSingleton<AutoMatchService>();
 
 var app = builder.Build();
 
@@ -127,6 +128,21 @@ app.MapPost("/api/drafts/{draftId:int}/undo", async (uint draftId, UndoRequest b
         return Results.Json(new { ok = false, error = "Undo failed due to a server or database error." }, statusCode: 500);
     }
 });
+
+app.MapPost("/api/terms/{termId:int}/match",
+    async (uint termId, AutoMatchRequest body, AutoMatchService svc, CancellationToken ct) =>
+    {
+        try
+        {
+            var result = await svc.RunAsync(termId, body, ct);
+            return result.Ok ? Results.Ok(result) : Results.Json(result, statusCode: 409);
+        }
+        catch (Exception)
+        {
+            return Results.Json(new { ok = false, error = "Auto-match failed due to a server or database error." },
+                statusCode: 500);
+        }
+    });
 
 app.Run();
 

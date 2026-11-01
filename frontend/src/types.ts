@@ -119,3 +119,16 @@ export type HistoryItem = {
   isUndoable: boolean
   createdAt: string
 }
+
+export type AutoMatchResult = {
+  ok: boolean
+  draft?: DraftInfo | null
+  placedCount: number
+  stillUnassigned: number
+  mutualPairsPlaced: number
+  placements: unknown[]
+  skips: { contractId: number; tenantCode: string; reason: string }[]
+  notes: string[]
+  issues: ValidationIssue[]
+  error?: string
+}

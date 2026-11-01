@@ -70,6 +70,7 @@ This workspace never claims full validation against unimplemented proposal rules
 | POST | `/api/drafts/{draftId}/lock` | Lock / unlock |
 | GET | `/api/drafts/{draftId}/history` | Recent change history (`?limit=50`) |
 | POST | `/api/drafts/{draftId}/undo` | Undo last undoable change, or `{ historyId }` |
+| POST | `/api/terms/{termId}/match` | V1 auto-match → new draft (see `docs/auto-match-v1.md`) |
 
 Move/swap accept optional `performedBy` + `reason` (reason never required). Lock uses `lockedBy` as the operator identity.
 
