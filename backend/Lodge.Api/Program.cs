@@ -1,3 +1,5 @@
+using Lodge.Core.Models;
+using Lodge.Core.Services;
 using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +11,7 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 var connectionString = builder.Configuration.GetConnectionString("Lodge")
     ?? throw new InvalidOperationException("ConnectionStrings:Lodge is not configured. Copy appsettings.Local.example.json to appsettings.Local.json.");
 builder.Services.AddMySqlDataSource(connectionString);
+builder.Services.AddSingleton<AssignmentService>();
 
 var app = builder.Build();
 
@@ -24,7 +27,8 @@ app.MapGet("/api/health", async (MySqlDataSource db) =>
     }
     catch (Exception ex)
     {
-        return Results.Json(new { status = "unhealthy", error = ex.Message }, statusCode: 503);
+        // Do not echo connection strings or row data.
+        return Results.Json(new { status = "unhealthy", error = ex.GetType().Name }, statusCode: 503);
     }
 });
 
@@ -36,6 +40,71 @@ app.MapGet("/api/summary", async (MySqlDataSource db) =>
     await using var r = await cmd.ExecuteReaderAsync();
     await r.ReadAsync();
     return Results.Ok(new { tenants = r.GetInt64(0), apartments = r.GetInt64(1), floorPlans = r.GetInt64(2) });
+});
+
+app.MapGet("/api/terms", async (AssignmentService svc, CancellationToken ct) =>
+    Results.Ok(await svc.ListTermsAsync(ct)));
+
+app.MapGet("/api/terms/{termId:int}/drafts", async (uint termId, AssignmentService svc, CancellationToken ct) =>
+    Results.Ok(await svc.ListDraftsAsync(termId, ct)));
+
+app.MapPost("/api/terms/{termId:int}/drafts", async (uint termId, CreateDraftRequest body, AssignmentService svc, CancellationToken ct) =>
+{
+    var (draft, issues) = await svc.CreateDraftAsync(termId, body, ct);
+    if (draft is null)
+        return Results.Json(new { ok = false, issues }, statusCode: 400);
+    return Results.Ok(new { ok = true, draft, issues });
+});
+
+app.MapGet("/api/drafts/{draftId:int}/workspace", async (uint draftId, AssignmentService svc, CancellationToken ct) =>
+{
+    var workspace = await svc.GetWorkspaceAsync(draftId, ct);
+    return workspace is null ? Results.NotFound(new { error = "Draft not found." }) : Results.Ok(workspace);
+});
+
+app.MapPost("/api/drafts/{draftId:int}/move", async (uint draftId, MoveRequest body, AssignmentService svc, CancellationToken ct) =>
+{
+    try
+    {
+        var result = await svc.MoveAsync(draftId, body, ct);
+        return result.Ok
+            ? Results.Ok(result)
+            : Results.Json(result, statusCode: 409);
+    }
+    catch (Exception)
+    {
+        return Results.Json(new { ok = false, error = "Move failed due to a server or database error." }, statusCode: 500);
+    }
+});
+
+app.MapPost("/api/drafts/{draftId:int}/swap", async (uint draftId, SwapRequest body, AssignmentService svc, CancellationToken ct) =>
+{
+    try
+    {
+        var result = await svc.SwapAsync(draftId, body, ct);
+        return result.Ok
+            ? Results.Ok(result)
+            : Results.Json(result, statusCode: 409);
+    }
+    catch (Exception)
+    {
+        return Results.Json(new { ok = false, error = "Swap failed due to a server or database error." }, statusCode: 500);
+    }
+});
+
+app.MapPost("/api/drafts/{draftId:int}/lock", async (uint draftId, LockRequest body, AssignmentService svc, CancellationToken ct) =>
+{
+    try
+    {
+        var result = await svc.SetLockAsync(draftId, body, ct);
+        return result.Ok
+            ? Results.Ok(result)
+            : Results.Json(result, statusCode: 409);
+    }
+    catch (Exception)
+    {
+        return Results.Json(new { ok = false, error = "Lock update failed due to a server or database error." }, statusCode: 500);
+    }
 });
 
 app.Run();

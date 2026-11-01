@@ -1,0 +1,73 @@
+# Manual assignment workspace (implemented)
+
+**Status:** implemented on the API + UI. This is the foundation for later history/undo and automatic matching.
+It does **not** run the matching algorithm.
+
+## What staff can do
+
+1. Select a term and an existing draft.
+2. Create a new working draft (empty or copy of another draft’s assignments/locks). The source draft is unchanged.
+3. See active apartments (number, plan, floor/building, occupants, occupancy / effective capacity).
+4. See eligible unassigned tenants for the draft’s term (every term contract appears exactly once: assigned or unassigned).
+5. Search/filter by tenant name or code, apartment number, or floor plan.
+6. Move a selected tenant to another apartment or unassign them.
+7. Swap two assigned tenants atomically.
+8. Lock/unlock an assignment with an explicit fictional operator identity (no auth).
+9. Review a compact validation panel (details on demand), plus original roommate-request wording.
+10. Edits persist in MySQL across refresh.
+
+## Validation (backend authoritative)
+
+Reusable C# service: `Lodge.Core.Validation.AssignmentValidator`, called by `Lodge.Core.Services.AssignmentService`
+(central mutation path for a future history/undo milestone). Matching can call the same validator later.
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `DRAFT_NOT_EDITABLE` | error | Draft status is `final` or `archived` |
+| `CONTRACT_NOT_FOUND` / `CONTRACT_TERM_MISMATCH` | error | Contract missing or wrong term |
+| `APARTMENT_NOT_FOUND` / `APARTMENT_INACTIVE` | error | Destination missing or inactive |
+| `FLOOR_PLAN_MISMATCH` | error | Contracted plan ≠ apartment plan |
+| `CAPACITY_EXCEEDED` | error | Occupancy would exceed `v_apartment_capacity.effective_capacity` |
+| `ASSIGNMENT_LOCKED` | error | Manager lock blocks the change |
+| `RESTRICTION_*` | error | Staff-confirmed `placement_restrictions` violated |
+| `SWAP_*` / `LOCK_OWNER_REQUIRED` / `NOT_ASSIGNED` | error | Swap/lock preconditions |
+| `UNCONFIRMED_ALLERGY_COLOCATION` | **warning only** | Legacy `has_animal` / `animal_allergy_restriction` flags coincide — **not enforced** |
+| `UNRESOLVED_ROOMMATE_REQUEST` | info | Pending/unresolved/ambiguous/excluded wording for review |
+
+Moves and swaps validate the **resulting** state (both apartments for a swap). Rejected ops leave the DB unchanged (single transaction).
+
+## Confirmed vs proposal (do not treat proposals as policy)
+
+**Enforced (schema / Samuel-confirmed capacity rules):**
+
+- Assignments are apartment numbers only; capacity from `floor_plans.resident_capacity` or `apartments.capacity_override`.
+- Contracted floor plan must match the apartment.
+- One assignment per contract per draft; draft and contract share a term.
+- Manager locks require `locked_by`.
+- Staff-confirmed `placement_restrictions` rows.
+
+**Not enforced (proposals / missing schema — see `docs/assignment-algorithm.md` §14):**
+
+- Private-room bedroom-slot capacity (`contracts.room_type` not in schema).
+- Ward mapping (`apartments.ward_id` not in schema).
+- Accessibility need / adapted apartments.
+- Staff-confirmed allergy hard rule (no `allergy_confirmed_by` fields; legacy preference booleans are warnings only).
+- Roommate-request name resolution (seeds stay `pending`; original `raw_text` shown unchanged).
+
+This workspace never claims full validation against unimplemented proposal rules.
+
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/terms` | List terms |
+| GET | `/api/terms/{termId}/drafts` | List drafts |
+| POST | `/api/terms/{termId}/drafts` | Create empty or copy draft |
+| GET | `/api/drafts/{draftId}/workspace` | Full workspace payload |
+| POST | `/api/drafts/{draftId}/move` | Assign / reassign / unassign |
+| POST | `/api/drafts/{draftId}/swap` | Atomic swap |
+| POST | `/api/drafts/{draftId}/lock` | Lock / unlock |
+
+## Deferred (out of scope here)
+
+Auto matching, AI, what-if scenarios, real import, multi-user auth/collab, cloud deploy, event sourcing, before/after history/undo UI.

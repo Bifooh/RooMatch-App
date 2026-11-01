@@ -3,18 +3,21 @@
 **All tenant data here is FICTIONAL.** No real resident data was used, and none should go into these files. The floor plan names, the two buildings and the four floors are real Lodge facts from Samuel. Resident capacities are explicit per-plan values from Samuel/manager input (2 per bedroom by default); all 10 plans are confirmed.
 Real-data deployment needs its own security and operations review.
 
-This repo holds the MySQL schema and a reproducible fictional dataset (deliverable 1), plus the app skeleton:
-a Vite + React + TypeScript frontend and an ASP.NET Core (.NET 8) minimal API. The rules engine and solver come later;
-their plain-English draft design is **[docs/assignment-algorithm.md](docs/assignment-algorithm.md)** (hard rules, the
-points score built from Samuel's weights, worked examples and open questions). How student data must be handled is
-in **[docs/data-privacy.md](docs/data-privacy.md)**.
-Everything runs locally: no cloud services, telemetry or external APIs.
+This repo holds the MySQL schema and a reproducible fictional dataset (deliverable 1), plus a local app:
+a Vite + React + TypeScript frontend and an ASP.NET Core (.NET 8) minimal API with a **manual assignment
+workspace** (create/copy drafts, move/swap/lock, backend validation). The automatic matching solver is still
+future work; its plain-English draft design is **[docs/assignment-algorithm.md](docs/assignment-algorithm.md)**.
+What the manual workspace implements vs defers is in **[docs/manual-assignment.md](docs/manual-assignment.md)**.
+How student data must be handled is in **[docs/data-privacy.md](docs/data-privacy.md)**.
+Everything runs locally: no cloud services, telemetry or external APIs. Local-only is **not** the same as
+ready for confidential student data.
 
 ## Contents
 
 | Path | What it is |
 |---|---|
-| `docs/assignment-algorithm.md` | DRAFT design of the assignment engine, in plain English, for team and AI review. No code yet. |
+| `docs/assignment-algorithm.md` | DRAFT design of the assignment engine (proposals + open questions). Solver not implemented. |
+| `docs/manual-assignment.md` | What the manual workspace implements, validation issue codes, and explicit limitations vs proposals. |
 | `docs/data-privacy.md` | DRAFT privacy and security plan: field-by-field table for the Lodge's two forms, what is never stored, roles, encryption, retention, import, logging, questions for the Lodge. |
 | `db/schema.sql` | MySQL 8 schema: 11 tables plus the `v_apartment_capacity` view. Re-running it drops and recreates the tables. |
 | `db/seed_small.sql` | 32 tenants and 16 apartments (capacity 99), seed 2027. It needs at least 32 tenants to fit every edge case. |
@@ -22,18 +25,39 @@ Everything runs locally: no cloud services, telemetry or external APIs.
 | `db/seed_*_answer_key.json` | The deliberate edge cases (tenant codes, apartments, expected handling) plus the random noise added to the large set. Use these in tests. |
 | `db/sanity_checks.sql` | Read-only checks: counts, demand vs capacity per floor plan, renewal plan mismatches, and requests with no exact name match. |
 | `tools/DataGen/` | The generator: a C# (.NET 8) console app with no NuGet dependencies. |
-| `Lodge.sln` | Solution covering `Lodge.Api`, `Lodge.Tests` and `DataGen`. |
-| `backend/Lodge.Api/` | ASP.NET Core minimal API (MySqlConnector). `GET /api/health`, `GET /api/summary`. |
-| `backend/Lodge.Tests/` | xUnit test project (one smoke test for now; the rules engine tests go here). |
-| `frontend/` | Vite + React + TypeScript app. Dev server proxies `/api` to the API. |
+| `Lodge.sln` | Solution covering `Lodge.Core`, `Lodge.Api`, `Lodge.Tests` and `DataGen`. |
+| `backend/Lodge.Core/` | Shared validation (`AssignmentValidator`) and mutation service (`AssignmentService`) over MySqlConnector. |
+| `backend/Lodge.Api/` | ASP.NET Core minimal API: health/summary plus assignment workspace endpoints (see `docs/manual-assignment.md`). |
+| `backend/Lodge.Tests/` | xUnit: pure validator tests always; DB integration tests when `LODGE_TEST_CONNECTION` / `ConnectionStrings__Lodge` is set. |
+| `frontend/` | Vite + React + TypeScript assignment workspace. Dev server proxies `/api` to the API. |
 
 ## Run it locally
 
-Prerequisites: .NET 8 SDK, Node 20+ (verified with Node 24), MySQL 8.
+Prerequisites: **.NET 8** (SDK + ASP.NET Core runtime), Node 20+ (verified with Node 24), MySQL 8.
+
+### 0. .NET 8 on macOS (arm64)
+
+Projects target `net8.0`. A machine that only has .NET 10 at `/usr/local/share/dotnet` will fail at
+`dotnet run` with a missing `Microsoft.AspNetCore.App 8.0.0` framework error even if `Microsoft.NETCore.App 8`
+is present — the ASP.NET shared framework is separate.
+
+Preferred fix (keeps `net8.0`; do **not** retarget to net10 for this):
+
+```bash
+brew install dotnet@8
+export DOTNET_ROOT="$(brew --prefix dotnet@8)/libexec"
+export PATH="$DOTNET_ROOT:$PATH"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+dotnet --list-runtimes   # must show Microsoft.AspNetCore.App 8.x
+```
+
+Alternatives: install the .NET 8 ASP.NET Core runtime/SDK from https://dotnet.microsoft.com into
+`$HOME/.dotnet` and put that ahead of `/usr/local/share/dotnet` on `PATH`, or (with admin) install AspNetCore 8
+into `/usr/local/share/dotnet`. Confirm with `dotnet --list-runtimes` before running the API.
 
 ### 1. Database
 
-The dev box runs a user-space MySQL 8.0.40 on a Unix socket only (`--skip-networking`), socket
+**Preferred (documented lodge box):** user-space MySQL 8 on a Unix socket only (`--skip-networking`), socket
 `~/mysql/run/mysql.sock`, user `root` with no password, databases `lodge_small` and `lodge_large`.
 
 ```bash
@@ -41,7 +65,14 @@ source ~/mysql/env.sh        # sets LD_LIBRARY_PATH and $MYSQL
 $MYSQL -e "SELECT COUNT(*) FROM lodge_small.tenants"   # expect 32
 ```
 
-To (re)create a database, follow "Load into MySQL" below.
+**Mac checkout alternative:** if that socket is unavailable, any local MySQL 8 instance works. Load schema +
+`db/seed_small.sql` into a database (e.g. `lodge_small`) and point `appsettings.Local.json` or
+`ConnectionStrings__Lodge` at it. Example socket-style string:
+
+`Server=/path/to/mysql.sock;Protocol=Unix;Database=lodge_small;User ID=root;Password=`
+
+To (re)create a database, follow "Load into MySQL" below. No incremental migration is required for this
+milestone (schema unchanged).
 
 ### 2. API
 
@@ -50,9 +81,12 @@ cp backend/Lodge.Api/appsettings.Local.example.json backend/Lodge.Api/appsetting
 # edit the connection string: socket path, database (lodge_small / lodge_large), password (empty on the dev box)
 export PATH=$HOME/.dotnet:$PATH DOTNET_CLI_TELEMETRY_OPTOUT=1
 dotnet build Lodge.sln && dotnet test Lodge.sln
+# Optional: run DB-backed tests against the same connection string
+# LODGE_TEST_CONNECTION='…' dotnet test Lodge.sln --filter AssignmentServiceDbTests
 cd backend/Lodge.Api && dotnet run --launch-profile http     # http://localhost:5080
-curl localhost:5080/api/health    # {"status":"ok","database":"lodge_small","serverVersion":"8.0.40"}
+curl localhost:5080/api/health    # {"status":"ok","database":"lodge_small","serverVersion":"…"}
 curl localhost:5080/api/summary   # {"tenants":32,"apartments":16,"floorPlans":10}
+curl localhost:5080/api/terms     # list terms for the workspace
 ```
 
 `appsettings.Local.json` is git-ignored and overrides `appsettings*.json`. You can also use
@@ -71,15 +105,16 @@ npm run build    # type-check + production build into dist/
 
 ## Decisions
 
-- **Monorepo, one solution.** `Lodge.sln` at the root covers `backend/Lodge.Api`, `backend/Lodge.Tests` and the existing `tools/DataGen` (left unchanged).
+- **Monorepo, one solution.** `Lodge.sln` at the root covers `backend/Lodge.Core`, `backend/Lodge.Api`, `backend/Lodge.Tests` and the existing `tools/DataGen` (left unchanged).
 - **Minimal API + MySqlConnector, no ORM.** Raw SQL through `MySqlDataSource` (registered with `AddMySqlDataSource`). Dapper can be added later if mapping gets tedious; EF Core was rejected as too heavy for a schema we already own in `db/schema.sql`.
+- **Manual assignment workspace.** Mutations are centralized in `AssignmentService` so history/undo can wrap the same path later. Validation is shared C# (`AssignmentValidator`), not SQL triggers. See `docs/manual-assignment.md`.
 - **Connection strings:** no secrets committed. The committed `appsettings.Development.json` has a password-less TCP default; real local values go in the git-ignored `appsettings.Local.json` (template: `appsettings.Local.example.json`) or env vars. Chosen over `dotnet user-secrets` so the setting lives next to the project and is easy to see.
 - **Unix socket** for the dev DB, because the box's MySQL runs with `--skip-networking`.
 - **Health endpoint** opens a connection and runs `SELECT DATABASE(), VERSION()`; returns 503 with the error message if the DB is unreachable.
 - **HTTP only on port 5080** in development (launch profile trimmed; no HTTPS profile, no OpenAPI/Swagger package) to keep it small. Revisit HTTPS/auth before any real data.
 - **Vite dev proxy** for `/api`, so no CORS configuration is needed in the API. Production hosting is undecided.
 - **Frontend:** stock `create-vite` react-ts template (Vite 8, React, oxlint), no UI library or state library yet.
-- **Tests:** xUnit project with one smoke test; it doesn't reference the API yet. The rules engine will likely be its own class library referenced by both API and tests.
+- **Tests:** xUnit in `Lodge.Tests` references `Lodge.Core`. Validator unit tests always run; `AssignmentServiceDbTests` require a live MySQL connection string.
 - **Telemetry:** set `DOTNET_CLI_TELEMETRY_OPTOUT=1` when running the .NET CLI.
 - **Capacity (2026-10-31, "LODGE UPDATE"):** Samuel/manager input gives every bedroom 2 people by default: 4/4/6/8/8/8 for the women's plans and 8 for men's Flat, Standard Townhome and Oversized Townhome. Men's Standard 3bd (M-STD-3) was first left blank, then confirmed as 6 by Samuel/manager the same day, so all 10 plans have `capacity_is_assumption = FALSE`. Values stay explicit per plan (not a bedrooms x 2 formula).
 - **Private rooms:** some students pay extra for a bedroom + bathroom to themselves, so an apartment's real headcount varies (e.g. 3 people in a 2-bedroom). The design doc proposes counting capacity in bedroom slots (shared = 1, private = 2, apartment = 2 x bedrooms). Not in the schema or seeds yet.
