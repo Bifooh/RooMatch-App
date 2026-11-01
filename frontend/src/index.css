@@ -43,6 +43,13 @@ body {
   margin-bottom: 1rem;
 }
 
+.operator-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
 h1 {
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
   font-size: clamp(1.6rem, 2.5vw, 2.1rem);
@@ -130,12 +137,26 @@ button:disabled {
 .banner.bad { background: var(--bad-bg); color: var(--bad); }
 .banner.info { background: #eef2f7; color: var(--info); }
 
-.create-draft, .action-panel, .issues, .meta, .apt-card {
+.create-draft, .action-panel, .issues, .history-panel, .meta, .apt-card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 0.85rem 1rem;
   margin-bottom: 0.85rem;
+}
+
+.history-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.history-undone {
+  opacity: 0.72;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .create-draft {

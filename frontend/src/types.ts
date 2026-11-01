@@ -90,4 +90,32 @@ export type MutationResult = {
   ok: boolean
   issues: ValidationIssue[]
   error?: string
+  historyId?: number | null
+}
+
+export type HistoryEntry = {
+  contractId: number
+  tenantCode: string | null
+  apartmentId: number | null
+  apartmentNumber: string | null
+  assigned: boolean
+  isLocked: boolean
+  lockedBy: string | null
+  lockedAt: string | null
+  source: string | null
+}
+
+export type HistoryItem = {
+  historyId: number
+  draftId: number
+  termId: number
+  changeType: string
+  performedBy: string
+  reason: string | null
+  before: HistoryEntry[]
+  after: HistoryEntry[]
+  undoesHistoryId: number | null
+  undoneByHistoryId: number | null
+  isUndoable: boolean
+  createdAt: string
 }

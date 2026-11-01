@@ -108,7 +108,7 @@ npm run build    # type-check + production build into dist/
 
 - **Monorepo, one solution.** `Lodge.sln` at the root covers `backend/Lodge.Core`, `backend/Lodge.Api`, `backend/Lodge.Tests` and the existing `tools/DataGen` (left unchanged).
 - **Minimal API + MySqlConnector, no ORM.** Raw SQL through `MySqlDataSource` (registered with `AddMySqlDataSource`). Dapper can be added later if mapping gets tedious; EF Core was rejected as too heavy for a schema we already own in `db/schema.sql`.
-- **Manual assignment workspace.** Mutations are centralized in `AssignmentService` so history/undo can wrap the same path later. Validation is shared C# (`AssignmentValidator`), not SQL triggers. See `docs/manual-assignment.md`.
+- **Manual assignment workspace + history/undo.** Mutations go through `AssignmentService` with before/after history; the UI can undo last or by row. Apply `db/migrations/001_assignment_change_history.sql` after schema/seed. Validation is shared C# (`AssignmentValidator`). See `docs/manual-assignment.md`.
 - **Connection strings:** no secrets committed. The committed `appsettings.Development.json` has a password-less TCP default; real local values go in the git-ignored `appsettings.Local.json` (template: `appsettings.Local.example.json`) or env vars. Chosen over `dotnet user-secrets` so the setting lives next to the project and is easy to see.
 - **Unix socket** for the dev DB, because the box's MySQL runs with `--skip-networking`.
 - **Health endpoint** opens a connection and runs `SELECT DATABASE(), VERSION()`; returns 503 with the error message if the DB is unreachable.

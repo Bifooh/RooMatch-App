@@ -1,7 +1,6 @@
 # Manual assignment workspace (implemented)
 
-**Status:** implemented on the API + UI. This is the foundation for later history/undo and automatic matching.
-It does **not** run the matching algorithm.
+**Status:** manual workspace + history/undo API and UI are implemented. Automatic matching is still deferred.
 
 ## What staff can do
 
@@ -15,6 +14,7 @@ It does **not** run the matching algorithm.
 8. Lock/unlock an assignment with an explicit fictional operator identity (no auth).
 9. Review a compact validation panel (details on demand), plus original roommate-request wording.
 10. Edits persist in MySQL across refresh.
+11. Review recent change history for the selected draft; undo last or undo a specific row (optional reason).
 
 ## Validation (backend authoritative)
 
@@ -73,7 +73,7 @@ This workspace never claims full validation against unimplemented proposal rules
 
 Move/swap accept optional `performedBy` + `reason` (reason never required). Lock uses `lockedBy` as the operator identity.
 
-## History & undo (backend)
+## History & undo
 
 **Implemented**
 
@@ -82,10 +82,11 @@ Move/swap accept optional `performedBy` + `reason` (reason never required). Lock
 - List history newest-first; `isUndoable` when not yet undone and not itself an undo row.
 - Undo restores `before_state`, re-checks blocking draft validation, writes an `undo` history row, marks the original `undone_by_history_id`. Transactional; conflicts / validation failures leave the DB unchanged.
 - Draft-copy is **not** recorded as undoable history.
+- Workspace UI: history panel, Undo last / per-row Undo, optional reason field (never required).
 
 **Deferred**
 
-- History/undo UI, optional reason picker, learning from unexplained edits, full event sourcing, undoing draft-copy, multi-user auth.
+- Structured reason picker / learning from unexplained edits, full event sourcing, undoing draft-copy, multi-user auth.
 
 ### Apply migration
 
@@ -101,4 +102,4 @@ Safe to re-run (`CREATE TABLE IF NOT EXISTS`). Does not wipe seed data.
 
 ## Deferred (out of scope here)
 
-Auto matching, AI, what-if scenarios, real import, multi-user auth/collab, cloud deploy, full event sourcing, history/undo UI.
+Auto matching, AI, what-if scenarios, real import, multi-user auth/collab, cloud deploy, full event sourcing, draft-copy undo.
