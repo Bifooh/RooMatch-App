@@ -107,6 +107,27 @@ app.MapPost("/api/drafts/{draftId:int}/lock", async (uint draftId, LockRequest b
     }
 });
 
+app.MapGet("/api/drafts/{draftId:int}/history", async (uint draftId, int? limit, AssignmentService svc, CancellationToken ct) =>
+{
+    var items = await svc.ListHistoryAsync(draftId, limit ?? 50, ct);
+    return Results.Ok(items);
+});
+
+app.MapPost("/api/drafts/{draftId:int}/undo", async (uint draftId, UndoRequest body, AssignmentService svc, CancellationToken ct) =>
+{
+    try
+    {
+        var result = await svc.UndoAsync(draftId, body, ct);
+        return result.Ok
+            ? Results.Ok(result)
+            : Results.Json(result, statusCode: 409);
+    }
+    catch (Exception)
+    {
+        return Results.Json(new { ok = false, error = "Undo failed due to a server or database error." }, statusCode: 500);
+    }
+});
+
 app.Run();
 
 public partial class Program { }

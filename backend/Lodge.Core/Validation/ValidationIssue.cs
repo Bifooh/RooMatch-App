@@ -49,5 +49,11 @@ public sealed class ValidationIssue
         public const string LockOwnerRequired = "LOCK_OWNER_REQUIRED";
         public const string UnconfirmedAllergyColocation = "UNCONFIRMED_ALLERGY_COLOCATION";
         public const string UnresolvedRoommateRequest = "UNRESOLVED_ROOMMATE_REQUEST";
+        public const string HistoryNotFound = "HISTORY_NOT_FOUND";
+        public const string HistoryAlreadyUndone = "HISTORY_ALREADY_UNDONE";
+        public const string HistoryNotUndoable = "HISTORY_NOT_UNDOABLE";
+        public const string HistoryStateConflict = "HISTORY_STATE_CONFLICT";
+        public const string NothingToUndo = "NOTHING_TO_UNDO";
+        public const string UndoOperatorRequired = "UNDO_OPERATOR_REQUIRED";
     }
 }

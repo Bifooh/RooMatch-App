@@ -1,7 +1,6 @@
 # Manual assignment workspace (implemented)
 
-**Status:** implemented on the API + UI. This is the foundation for later history/undo and automatic matching.
-It does **not** run the matching algorithm.
+**Status:** manual workspace + history/undo API and UI are implemented. Automatic matching is still deferred.
 
 ## What staff can do
 
@@ -15,11 +14,13 @@ It does **not** run the matching algorithm.
 8. Lock/unlock an assignment with an explicit fictional operator identity (no auth).
 9. Review a compact validation panel (details on demand), plus original roommate-request wording.
 10. Edits persist in MySQL across refresh.
+11. Review recent change history for the selected draft; undo last or undo a specific row (optional reason).
 
 ## Validation (backend authoritative)
 
 Reusable C# service: `Lodge.Core.Validation.AssignmentValidator`, called by `Lodge.Core.Services.AssignmentService`
-(central mutation path for a future history/undo milestone). Matching can call the same validator later.
+(central mutation path). Successful move / unassign / swap / lock / unlock rows are recorded for undo
+(see **History & undo** below). Matching can call the same validator later.
 
 | Code | Severity | Meaning |
 |---|---|---|
@@ -67,7 +68,38 @@ This workspace never claims full validation against unimplemented proposal rules
 | POST | `/api/drafts/{draftId}/move` | Assign / reassign / unassign |
 | POST | `/api/drafts/{draftId}/swap` | Atomic swap |
 | POST | `/api/drafts/{draftId}/lock` | Lock / unlock |
+| GET | `/api/drafts/{draftId}/history` | Recent change history (`?limit=50`) |
+| POST | `/api/drafts/{draftId}/undo` | Undo last undoable change, or `{ historyId }` |
+
+Move/swap accept optional `performedBy` + `reason` (reason never required). Lock uses `lockedBy` as the operator identity.
+
+## History & undo
+
+**Implemented**
+
+- Table `assignment_change_history` (incremental migration `db/migrations/001_assignment_change_history.sql`).
+- Before/after assignment snapshots (contract id, tenant code, apartment id/number, lock fields) for successful mutations.
+- List history newest-first; `isUndoable` when not yet undone and not itself an undo row.
+- Undo restores `before_state`, re-checks blocking draft validation, writes an `undo` history row, marks the original `undone_by_history_id`. Transactional; conflicts / validation failures leave the DB unchanged.
+- Draft-copy is **not** recorded as undoable history.
+- Workspace UI: history panel, Undo last / per-row Undo, optional reason field (never required).
+
+**Deferred**
+
+- Structured reason picker / learning from unexplained edits, full event sourcing, undoing draft-copy, multi-user auth.
+
+### Apply migration
+
+```bash
+# after schema + seed are loaded
+mysql lodge_small < db/migrations/001_assignment_change_history.sql
+# Mac user-space example:
+# /usr/local/mysql/bin/mysql -uroot --socket="$HOME/mysql-lodge/run/mysql.sock" lodge_small \
+#   < db/migrations/001_assignment_change_history.sql
+```
+
+Safe to re-run (`CREATE TABLE IF NOT EXISTS`). Does not wipe seed data.
 
 ## Deferred (out of scope here)
 
-Auto matching, AI, what-if scenarios, real import, multi-user auth/collab, cloud deploy, event sourcing, before/after history/undo UI.
+Auto matching, AI, what-if scenarios, real import, multi-user auth/collab, cloud deploy, full event sourcing, draft-copy undo.

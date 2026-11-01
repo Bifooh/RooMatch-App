@@ -2,14 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   createDraft,
   fetchDrafts,
+  fetchHistory,
   fetchTerms,
   fetchWorkspace,
   moveTenant,
   setLock,
   swapTenants,
+  undoChange,
 } from './api'
 import type {
   DraftInfo,
+  HistoryEntry,
+  HistoryItem,
   TermInfo,
   UnassignedTenant,
   ValidationIssue,
@@ -23,6 +27,33 @@ type Selected =
 
 function displayName(first: string, last: string, code: string) {
   return `${first} ${last} (${code})`
+}
+
+function formatWhen(iso: string) {
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return iso
+  }
+}
+
+function describeEntry(
+  e: HistoryEntry,
+  nameByCode: Map<string, string>,
+): string {
+  const label = e.tenantCode
+    ? nameByCode.get(e.tenantCode) ?? e.tenantCode
+    : `contract ${e.contractId}`
+  const code = e.tenantCode ? ` (${e.tenantCode})` : ''
+  if (!e.assigned) return `${label}${code} → unassigned`
+  const apt = e.apartmentNumber ?? (e.apartmentId != null ? `apt#${e.apartmentId}` : '?')
+  const lock = e.isLocked ? ` [locked${e.lockedBy ? ` by ${e.lockedBy}` : ''}]` : ''
+  return `${label}${code} → ${apt}${lock}`
+}
+
+function summarizeChange(item: HistoryItem, nameByCode: Map<string, string>) {
+  const after = item.after.map((e) => describeEntry(e, nameByCode)).join('; ')
+  return after || item.changeType
 }
 
 function matchesQuery(
@@ -59,6 +90,10 @@ export default function App() {
   const [copyLocks, setCopyLocks] = useState(true)
   const [showLimitations, setShowLimitations] = useState(false)
   const [showRequests, setShowRequests] = useState(false)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [changeReason, setChangeReason] = useState('')
 
   useEffect(() => {
     fetchTerms()
@@ -84,17 +119,33 @@ export default function App() {
       .catch((e: Error) => setBanner({ kind: 'bad', text: e.message }))
   }, [termId])
 
+  const reloadHistory = useCallback(async (id: number) => {
+    setHistoryLoading(true)
+    setHistoryError(null)
+    try {
+      setHistory(await fetchHistory(id))
+    } catch (e) {
+      setHistory([])
+      setHistoryError(e instanceof Error ? e.message : 'Could not load history')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
   const reloadWorkspace = useCallback(async (id: number) => {
     const ws = await fetchWorkspace(id)
     setWorkspace(ws)
     setSelected(null)
     setSwapTarget('')
     setMoveTarget('')
-  }, [])
+    await reloadHistory(id)
+  }, [reloadHistory])
 
   useEffect(() => {
     if (draftId === '') {
       setWorkspace(null)
+      setHistory([])
+      setHistoryError(null)
       return
     }
     setBusy(true)
@@ -180,6 +231,25 @@ export default function App() {
     return workspace.apartments.filter((a) => planId == null || a.floorPlanId === planId)
   }, [workspace, selected])
 
+  const nameByCode = useMemo(() => {
+    const map = new Map<string, string>()
+    if (!workspace) return map
+    for (const a of workspace.apartments) {
+      for (const o of a.occupants) {
+        map.set(o.tenantCode, `${o.firstName} ${o.lastName}`)
+      }
+    }
+    for (const u of workspace.unassigned) {
+      map.set(u.tenantCode, `${u.firstName} ${u.lastName}`)
+    }
+    return map
+  }, [workspace])
+
+  const lastUndoable = useMemo(
+    () => history.find((h) => h.isUndoable) ?? null,
+    [history],
+  )
+
   async function runMutation(action: () => Promise<{ ok: boolean; issues: ValidationIssue[]; error?: string }>) {
     if (draftId === '' || busy) return
     setBusy(true)
@@ -187,8 +257,10 @@ export default function App() {
     try {
       const result = await action()
       if (!result.ok) {
-        const first = result.issues?.[0]?.message ?? result.error ?? 'Rejected'
-        setBanner({ kind: 'bad', text: first })
+        const detail = result.issues?.length
+          ? result.issues.map((i) => `${i.code}: ${i.message}`).join(' · ')
+          : (result.error ?? 'Rejected')
+        setBanner({ kind: 'bad', text: detail })
       } else {
         const warn = result.issues?.find((i) => i.severity === 'warning')
         setBanner({
@@ -202,6 +274,17 @@ export default function App() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function onUndo(historyId: number | null) {
+    if (draftId === '' || busy || !operator.trim()) return
+    await runMutation(() =>
+      undoChange(draftId, {
+        historyId,
+        performedBy: operator.trim(),
+        reason: changeReason.trim() || null,
+      }),
+    )
   }
 
   async function onCreateDraft(e: React.FormEvent) {
@@ -254,15 +337,27 @@ export default function App() {
             Local only — not ready for confidential student data.
           </p>
         </div>
-        <label className="operator">
-          Operator identity
-          <input
-            value={operator}
-            onChange={(e) => setOperator(e.target.value)}
-            placeholder="Fictional staff name"
-            aria-label="Fictional operator identity for locks"
-          />
-        </label>
+        <div className="operator-block">
+          <label className="operator">
+            Operator identity
+            <input
+              value={operator}
+              onChange={(e) => setOperator(e.target.value)}
+              placeholder="Fictional staff name"
+              aria-label="Fictional operator identity for locks and history"
+            />
+          </label>
+          <label className="operator">
+            Change reason (optional)
+            <input
+              value={changeReason}
+              onChange={(e) => setChangeReason(e.target.value)}
+              placeholder="Not required"
+              maxLength={255}
+              aria-label="Optional reason for edits and undos"
+            />
+          </label>
+        </div>
       </header>
 
       {loading && <p role="status">Loading terms…</p>}
@@ -436,6 +531,98 @@ export default function App() {
             )}
           </section>
 
+          <section className="history-panel" aria-label="Change history">
+            <div className="issues-bar">
+              <strong>Change history</strong>
+              <span>
+                {historyLoading
+                  ? 'Loading…'
+                  : `${history.length} recent · ${history.filter((h) => h.isUndoable).length} undoable`}
+              </span>
+              <button
+                type="button"
+                disabled={draftId === '' || busy || historyLoading}
+                onClick={() => draftId !== '' && reloadHistory(draftId)}
+              >
+                Refresh history
+              </button>
+              <button
+                type="button"
+                disabled={!editable || busy || !lastUndoable || !operator.trim()}
+                onClick={() => onUndo(null)}
+                title={lastUndoable ? `Undo history #${lastUndoable.historyId}` : 'Nothing to undo'}
+              >
+                Undo last
+              </button>
+            </div>
+            {historyError && (
+              <p className="banner bad" role="alert">
+                History: {historyError}
+              </p>
+            )}
+            {!historyLoading && !historyError && history.length === 0 && (
+              <p className="empty">No recorded changes for this draft yet.</p>
+            )}
+            {history.length > 0 && (
+              <div className="history-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>When</th>
+                      <th>Type</th>
+                      <th>By</th>
+                      <th>Summary</th>
+                      <th>Reason</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((h) => (
+                      <tr key={h.historyId} className={h.isUndoable ? undefined : 'history-undone'}>
+                        <td>
+                          <code>#{h.historyId}</code>
+                          {h.undoesHistoryId != null && (
+                            <>
+                              <br />
+                              <span className="muted">undoes #{h.undoesHistoryId}</span>
+                            </>
+                          )}
+                          {h.undoneByHistoryId != null && (
+                            <>
+                              <br />
+                              <span className="muted">undone by #{h.undoneByHistoryId}</span>
+                            </>
+                          )}
+                        </td>
+                        <td>{formatWhen(h.createdAt)}</td>
+                        <td>
+                          <code>{h.changeType}</code>
+                        </td>
+                        <td>{h.performedBy}</td>
+                        <td>{summarizeChange(h, nameByCode)}</td>
+                        <td>{h.reason ?? '—'}</td>
+                        <td>
+                          {h.isUndoable ? (
+                            <button
+                              type="button"
+                              disabled={!editable || busy || !operator.trim()}
+                              onClick={() => onUndo(h.historyId)}
+                            >
+                              Undo
+                            </button>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
           <section className="filters" aria-label="Search and filters">
             <label>
               Search
@@ -485,10 +672,16 @@ export default function App() {
                   </label>
                   <button
                     type="button"
-                    disabled={!editable || busy || moveTarget === ''}
+                    disabled={!editable || busy || moveTarget === '' || !operator.trim()}
                     onClick={() =>
                       runMutation(() =>
-                        moveTenant(draftId as number, selected.contractId, moveTarget as number),
+                        moveTenant(
+                          draftId as number,
+                          selected.contractId,
+                          moveTarget as number,
+                          operator.trim(),
+                          changeReason.trim() || null,
+                        ),
                       )
                     }
                   >
@@ -496,9 +689,17 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    disabled={!editable || busy || selected.kind !== 'assigned'}
+                    disabled={!editable || busy || selected.kind !== 'assigned' || !operator.trim()}
                     onClick={() =>
-                      runMutation(() => moveTenant(draftId as number, selected.contractId, null))
+                      runMutation(() =>
+                        moveTenant(
+                          draftId as number,
+                          selected.contractId,
+                          null,
+                          operator.trim(),
+                          changeReason.trim() || null,
+                        ),
+                      )
                     }
                   >
                     Unassign
@@ -523,10 +724,16 @@ export default function App() {
                     </label>
                     <button
                       type="button"
-                      disabled={!editable || busy || swapTarget === ''}
+                      disabled={!editable || busy || swapTarget === '' || !operator.trim()}
                       onClick={() =>
                         runMutation(() =>
-                          swapTenants(draftId as number, selected.contractId, swapTarget as number),
+                          swapTenants(
+                            draftId as number,
+                            selected.contractId,
+                            swapTarget as number,
+                            operator.trim(),
+                            changeReason.trim() || null,
+                          ),
                         )
                       }
                     >
@@ -542,7 +749,13 @@ export default function App() {
                         const occ = apt?.occupants.find((o) => o.contractId === selected.contractId)
                         const locked = !occ?.isLocked
                         return runMutation(() =>
-                          setLock(draftId as number, selected.contractId, locked, operator.trim()),
+                          setLock(
+                            draftId as number,
+                            selected.contractId,
+                            locked,
+                            operator.trim(),
+                            changeReason.trim() || null,
+                          ),
                         )
                       }}
                     >

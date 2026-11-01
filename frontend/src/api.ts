@@ -1,4 +1,4 @@
-import type { DraftInfo, MutationResult, TermInfo, Workspace } from './types'
+import type { DraftInfo, HistoryItem, MutationResult, TermInfo, Workspace } from './types'
 
 async function parseJson<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => null)
@@ -47,11 +47,13 @@ export async function moveTenant(
   draftId: number,
   contractId: number,
   apartmentId: number | null,
+  performedBy?: string,
+  reason?: string | null,
 ): Promise<MutationResult> {
   const res = await fetch(`/api/drafts/${draftId}/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contractId, apartmentId }),
+    body: JSON.stringify({ contractId, apartmentId, performedBy, reason: reason || null }),
   })
   const body = await res.json().catch(() => ({ ok: false, issues: [] }))
   if (!res.ok && !body.issues) {
@@ -64,11 +66,13 @@ export async function swapTenants(
   draftId: number,
   contractIdA: number,
   contractIdB: number,
+  performedBy?: string,
+  reason?: string | null,
 ): Promise<MutationResult> {
   const res = await fetch(`/api/drafts/${draftId}/swap`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contractIdA, contractIdB }),
+    body: JSON.stringify({ contractIdA, contractIdB, performedBy, reason: reason || null }),
   })
   const body = await res.json().catch(() => ({ ok: false, issues: [] }))
   if (!res.ok && !body.issues) {
@@ -82,15 +86,36 @@ export async function setLock(
   contractId: number,
   locked: boolean,
   lockedBy: string,
+  reason?: string | null,
 ): Promise<MutationResult> {
   const res = await fetch(`/api/drafts/${draftId}/lock`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contractId, locked, lockedBy }),
+    body: JSON.stringify({ contractId, locked, lockedBy, reason: reason || null }),
   })
   const body = await res.json().catch(() => ({ ok: false, issues: [] }))
   if (!res.ok && !body.issues) {
     return { ok: false, issues: [], error: body.error ?? `Lock failed (${res.status})` }
   }
   return body as MutationResult
+}
+
+export async function fetchHistory(draftId: number, limit = 50): Promise<HistoryItem[]> {
+  return parseJson(await fetch(`/api/drafts/${draftId}/history?limit=${limit}`))
+}
+
+export async function undoChange(
+  draftId: number,
+  body: { historyId: number | null; performedBy: string; reason: string | null },
+): Promise<MutationResult> {
+  const res = await fetch(`/api/drafts/${draftId}/undo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const parsed = await res.json().catch(() => ({ ok: false, issues: [] }))
+  if (!res.ok && !parsed.issues) {
+    return { ok: false, issues: [], error: parsed.error ?? `Undo failed (${res.status})` }
+  }
+  return parsed as MutationResult
 }
