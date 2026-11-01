@@ -101,34 +101,37 @@ static class Program
     {
         // Floor plans: REAL Lodge plan names/bed/bath (from the Lodge application form).
         // resident_capacity is an explicit per-plan value, set here on purpose and NEVER computed from bedrooms.
-        // Samuel (2026-10-31): likely 2 residents per bedroom. Only M-FLAT-4 = 8 is confirmed; the rest are
-        // "likely 2 per bedroom per Samuel, unconfirmed" and stay flagged capacity_is_assumption = TRUE.
+        // Source: Samuel/manager input, 2026-10-31 ("LODGE UPDATE"): every bedroom holds 2 by default, giving the
+        // per-plan numbers below, so capacity_is_assumption = FALSE for them. Men's Standard 3bd (M-STD-3) was left
+        // blank: 6 is ASSUMED (2 per bedroom) and stays flagged TRUE until staff confirm it.
+        // Private bedrooms (a tenant paying for a bedroom + bathroom alone) lower the real headcount per apartment;
+        // that is not modelled in the seeds yet (see docs/assignment-algorithm.md, proposed schema changes).
         var defs = new (string Code, string Name, string Variant, int Bed, decimal Bath, string Cat, int Cap, bool Assumed)[] {
-            ("W-STD-2",  "Women's - Standard. 2 Bedroom, 2 Bath",          "standard",           2, 2.0m, "women", 4, true),
-            ("W-OVR-2",  "Women's - Oversized. 2 Bedroom, 2 Bath",         "oversized",          2, 2.0m, "women", 4, true),
-            ("W-STD-3",  "Women's - Standard. 3 Bedroom, 3 Bath",          "standard",           3, 3.0m, "women", 6, true),
-            ("W-FLAT-4", "Women's - Flat. 4 Bedroom, 4 Bath",              "flat",               4, 4.0m, "women", 8, true),
-            ("W-STH-4",  "Women's - Standard Townhome. 4 Bedroom, 4 Bath", "standard_townhome",  4, 4.0m, "women", 8, true),
-            ("W-OTH-4",  "Women's - Oversized Townhome. 4 Bedroom, 4 Bath","oversized_townhome", 4, 4.0m, "women", 8, true),
+            ("W-STD-2",  "Women's - Standard. 2 Bedroom, 2 Bath",          "standard",           2, 2.0m, "women", 4, false),
+            ("W-OVR-2",  "Women's - Oversized. 2 Bedroom, 2 Bath",         "oversized",          2, 2.0m, "women", 4, false),
+            ("W-STD-3",  "Women's - Standard. 3 Bedroom, 3 Bath",          "standard",           3, 3.0m, "women", 6, false),
+            ("W-FLAT-4", "Women's - Flat. 4 Bedroom, 4 Bath",              "flat",               4, 4.0m, "women", 8, false),
+            ("W-STH-4",  "Women's - Standard Townhome. 4 Bedroom, 4 Bath", "standard_townhome",  4, 4.0m, "women", 8, false),
+            ("W-OTH-4",  "Women's - Oversized Townhome. 4 Bedroom, 4 Bath","oversized_townhome", 4, 4.0m, "women", 8, false),
             ("M-STD-3",  "Men's - Standard. 3 Bedroom, 3 Bath",            "standard",           3, 3.0m, "men",   6, true),
             ("M-FLAT-4", "Men's - Flat. 4 Bedroom, 4 Bath",                "flat",               4, 4.0m, "men",   8, false),
-            ("M-STH-4",  "Men's - Standard Townhome. 4 Bedroom, 4 Bath",   "standard_townhome",  4, 4.0m, "men",   8, true),
-            ("M-OTH-4",  "Men's - Oversized Townhome. 4 Bedroom, 4 Bath",  "oversized_townhome", 4, 4.0m, "men",   8, true),
+            ("M-STH-4",  "Men's - Standard Townhome. 4 Bedroom, 4 Bath",   "standard_townhome",  4, 4.0m, "men",   8, false),
+            ("M-OTH-4",  "Men's - Oversized Townhome. 4 Bedroom, 4 Bath",  "oversized_townhome", 4, 4.0m, "men",   8, false),
         };
         int pid = 1;
         foreach (var d in defs)
             Plans.Add(new FloorPlan(pid++, d.Code, d.Name, d.Variant, d.Bed, d.Bath, d.Cat, d.Cap, d.Assumed,
-                d.Assumed ? "Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed"
-                          : "Real plan name; resident_capacity confirmed by Samuel"));
+                d.Assumed ? "Real plan name; resident_capacity ASSUMED (2 per bedroom); left blank in Samuel/manager input 2026-10-31, confirm with staff"
+                          : "Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)"));
         const string Oversubscribed = "M-OTH-4";
 
         // ---- edge-case tenants (identical structure for every size) ----
         var pend = new List<Action>(); // things that need apartments to exist first
 
-        // E1 roommate group larger than capacity (W-STD-2 assumed capacity 4, group of 5, all mutual)
+        // E1 roommate group larger than capacity (W-STD-2 capacity 4, group of 5, all mutual)
         var g = Enumerable.Range(0, 5).Select(_ => NewContract("W-STD-2", edge: true)).ToList();
         foreach (var a in g) foreach (var b in g) if (a != b) AddRequest(a, T(b).Full);
-        Edge("E01", "group_exceeds_capacity", "Five tenants all request each other but W-STD-2 holds 4 per apartment (assumed capacity, likely 2 per bedroom).", g,
+        Edge("E01", "group_exceeds_capacity", "Five tenants all request each other but W-STD-2 holds 4 per apartment (2 per bedroom, per Samuel/manager).", g,
             "Cannot place all five together; flag to review queue, keep requests, do not silently split without explanation.");
 
         // E2 animal + allergy conflict inside a mutual request pair
@@ -188,13 +191,13 @@ static class Program
         var m10 = NewContract("M-STD-3", edge: true);
         pend.Add(() => { var apt = AptsOf("M-STD-3").First(); MakeRenewal(m10, apt, "move");
             Edge("E10", "renewal_move", $"Renewing tenant in {apt.Number} wants to move.", new() { m10 },
-                "Move to a different apartment of the same plan, preferring the same building and floor, then an adjacent floor.", apt); });
+                "Move to a different apartment of the same plan, preferring the same floor and the same ward (wards not in the data yet); an adjacent floor is an unconfirmed fallback.", apt); });
 
         // E11 renewal whose current apartment's floor plan differs from the new contract
         var n11 = NewContract("M-FLAT-4", edge: true);
         pend.Add(() => { var apt = AptsOf("M-STD-3").Skip(1).First(); MakeRenewal(n11, apt, "stay");
             Edge("E11", "renewal_floor_plan_changed", $"Renewing tenant lives in {apt.Number} (M-STD-3) and wants to stay, but contracted M-FLAT-4.", new() { n11 },
-                "Staying is impossible under the contract; flag and propose M-FLAT-4 apartments on the same building floor (then adjacent floors) apartments.", apt); });
+                "Staying is impossible under the contract; flag it and propose M-FLAT-4 apartments on the same floor (and ward, once known), then adjacent floors.", apt); });
 
         // E12 staff-confirmed floor restriction + manager-locked placement
         var p12 = NewContract("M-STD-3", edge: true);
@@ -301,7 +304,7 @@ static class Program
         Edge("E15", "floor_plan_oversubscribed",
             $"{Oversubscribed}: {demand[P(Oversubscribed).Id]} contracts but only {aptCount[P(Oversubscribed).Id]} apartment(s) x {cap} = {aptCount[P(Oversubscribed).Id] * cap} places.",
             Contracts.Where(c => c.PlanId == P(Oversubscribed).Id).ToList(), "Some tenants cannot be placed; report shortfall honestly, never exceed capacity or move them to another plan silently.");
-        Edge("E16", "capacity_override", $"Apartment {ovApt.Number} has capacity_override=5 (W-STD-3 assumed plan capacity 6).", new(),
+        Edge("E16", "capacity_override", $"Apartment {ovApt.Number} has capacity_override=5 (W-STD-3 plan capacity 6).", new(),
             "Validation must use the override, not the plan capacity.", ovApt);
 
         // ---- random renewals among filler tenants ----

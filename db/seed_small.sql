@@ -8,16 +8,16 @@ INSERT INTO terms (term_id, code, name, start_date, end_date) VALUES
   (2, 'W2027', 'Winter 2027 (fictional dates)', '2027-01-06', '2027-04-14');
 
 INSERT INTO floor_plans (floor_plan_id, code, name, variant, bedrooms, bathrooms, housing_category, resident_capacity, capacity_is_assumption, notes) VALUES
-  (1, 'W-STD-2', 'Women''s - Standard. 2 Bedroom, 2 Bath', 'standard', 2, 2.0, 'women', 4, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (2, 'W-OVR-2', 'Women''s - Oversized. 2 Bedroom, 2 Bath', 'oversized', 2, 2.0, 'women', 4, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (3, 'W-STD-3', 'Women''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'women', 6, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (4, 'W-FLAT-4', 'Women''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'women', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (5, 'W-STH-4', 'Women''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'women', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (6, 'W-OTH-4', 'Women''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'women', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (7, 'M-STD-3', 'Men''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'men', 6, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (8, 'M-FLAT-4', 'Men''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity confirmed by Samuel'),
-  (9, 'M-STH-4', 'Men''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'men', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed'),
-  (10, 'M-OTH-4', 'Men''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'men', 8, TRUE, 'Real plan name; resident_capacity likely 2 per bedroom per Samuel, unconfirmed');
+  (1, 'W-STD-2', 'Women''s - Standard. 2 Bedroom, 2 Bath', 'standard', 2, 2.0, 'women', 4, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (2, 'W-OVR-2', 'Women''s - Oversized. 2 Bedroom, 2 Bath', 'oversized', 2, 2.0, 'women', 4, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (3, 'W-STD-3', 'Women''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'women', 6, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (4, 'W-FLAT-4', 'Women''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'women', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (5, 'W-STH-4', 'Women''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'women', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (6, 'W-OTH-4', 'Women''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'women', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (7, 'M-STD-3', 'Men''s - Standard. 3 Bedroom, 3 Bath', 'standard', 3, 3.0, 'men', 6, TRUE, 'Real plan name; resident_capacity ASSUMED (2 per bedroom); left blank in Samuel/manager input 2026-10-31, confirm with staff'),
+  (8, 'M-FLAT-4', 'Men''s - Flat. 4 Bedroom, 4 Bath', 'flat', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (9, 'M-STH-4', 'Men''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
+  (10, 'M-OTH-4', 'Men''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)');
 
 INSERT INTO apartments (apartment_id, apartment_number, floor_plan_id, building, floor, capacity_override, override_reason) VALUES
   (1, '5555', 1, 'Women''s', 1, NULL, NULL),

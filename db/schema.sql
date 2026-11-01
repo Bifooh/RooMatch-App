@@ -50,7 +50,8 @@ CREATE TABLE terms (
 -- floor_plans: what a tenant contracts for. Capacity is explicit.
 -- Plan names/bed/bath are the real Lodge plans (6 women's, 4 men's).
 -- housing_category is 'women' or 'men' (confirmed by Samuel).
--- resident_capacity values in the seeds are PLACEHOLDER ASSUMPTIONS.
+-- resident_capacity: Samuel/manager input (2 per bedroom by default);
+-- M-STD-3 is still an assumption (capacity_is_assumption = TRUE).
 -- ---------------------------------------------------------------------
 CREATE TABLE floor_plans (
   floor_plan_id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -60,7 +61,7 @@ CREATE TABLE floor_plans (
   bedrooms                 TINYINT UNSIGNED NOT NULL,
   bathrooms                DECIMAL(3,1) NOT NULL COMMENT 'e.g. 1.0, 2.5',
   housing_category         VARCHAR(30)  NOT NULL COMMENT 'Eligibility group, e.g. men / women',
-  resident_capacity        TINYINT UNSIGNED NOT NULL COMMENT 'Max residents per apartment. Stored, NOT derived from bedrooms. Current values are PLACEHOLDER ASSUMPTIONS',
+  resident_capacity        TINYINT UNSIGNED NOT NULL COMMENT 'Max residents per apartment. Stored, NOT derived from bedrooms. Private rooms can lower the real headcount',
   capacity_is_assumption   BOOLEAN      NOT NULL DEFAULT TRUE COMMENT 'TRUE until staff confirm the number',
   notes                    VARCHAR(255) NULL,
   PRIMARY KEY (floor_plan_id),
@@ -74,7 +75,7 @@ CREATE TABLE floor_plans (
 -- apartments: physical units, identified ONLY by apartment_number.
 -- apartment_number is a 4-digit number whose digits do NOT encode the
 -- floor, so floor is stored explicitly. "Nearby" for renewal moves means
--- same building + same floor, then an adjacent floor.
+-- same floor and same ward (ward mapping not in the schema yet).
 -- ---------------------------------------------------------------------
 CREATE TABLE apartments (
   apartment_id       INT UNSIGNED NOT NULL AUTO_INCREMENT,

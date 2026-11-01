@@ -6,7 +6,7 @@
     {
       "id": "E01",
       "kind": "group_exceeds_capacity",
-      "description": "Five tenants all request each other but W-STD-2 holds 4 per apartment (assumed capacity, likely 2 per bedroom).",
+      "description": "Five tenants all request each other but W-STD-2 holds 4 per apartment (2 per bedroom, per Samuel/manager).",
       "tenant_codes": [
         "FAKE-00001",
         "FAKE-00002",
@@ -117,7 +117,7 @@
       "apartments": [
         "1389"
       ],
-      "expected_handling": "Move to a different apartment of the same plan, preferring the same building and floor, then an adjacent floor."
+      "expected_handling": "Move to a different apartment of the same plan, preferring the same floor and the same ward (wards not in the data yet); an adjacent floor is an unconfirmed fallback."
     },
     {
       "id": "E11",
@@ -129,7 +129,7 @@
       "apartments": [
         "6146"
       ],
-      "expected_handling": "Staying is impossible under the contract; flag and propose M-FLAT-4 apartments on the same building floor (then adjacent floors) apartments."
+      "expected_handling": "Staying is impossible under the contract; flag it and propose M-FLAT-4 apartments on the same floor (and ward, once known), then adjacent floors."
     },
     {
       "id": "E12",
@@ -269,7 +269,7 @@
     {
       "id": "E16",
       "kind": "capacity_override",
-      "description": "Apartment 4075 has capacity_override=5 (W-STD-3 assumed plan capacity 6).",
+      "description": "Apartment 4075 has capacity_override=5 (W-STD-3 plan capacity 6).",
       "tenant_codes": [],
       "apartments": [
         "4075"
