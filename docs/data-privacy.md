@@ -27,8 +27,7 @@ main tool is **minimization**: the assignment engine needs very little.
 | P1 | **Collect the minimum.** Store only the fields the assignment needs (section 3). Everything else is dropped at import and never enters the database. | Recommended default |
 | P2 | **Store derived values, not raw ones.** Store the age, never the birthday. Store only the Yes/No allergy answer and whether staff confirmed documentation, never a diagnosis, allergy type, condition explanation or disability detail. | Recommended default |
 | P3 | **Pseudonymous tenant codes.** Every table refers to a tenant by a code. Real names live only in the separate identity table (`tenants`), used for matching roommate names and for staff display. | Recommended default |
-| P4 | **Never store:** home address, phone numbers, any email address, birthday, emergency contact, parking, payment or deposit details, free-form comments, marketing source ("how did you hear about us"), the
-Form 2 condition explanation, allergy documentation, or the Events & Amenities page. | Recommended default |
+| P4 | **Never store:** home address, phone numbers, any email address, birthday, emergency contact, parking, payment or deposit details, free-form comments, marketing source ("how did you hear about us"), the Form 2 condition explanation, allergy documentation, or the Events & Amenities page. | Recommended default |
 | P5 | **Local only.** One computer, no cloud services, no telemetry, no external AI APIs, no CDN or analytics in the web app. The API listens on localhost only. | Recommended default |
 | P6 | **No real data in AI tools.** Never paste real student data (or screenshots of it) into ChatGPT, Claude, Grok, Copilot, Cursor or any other AI tool, including to "debug quickly". Use the fictional seeds instead. | Recommended default |
 | P7 | **Real data never touches the repo.** No real exports, dumps or screenshots in git, issues or chat. | Recommended default |
