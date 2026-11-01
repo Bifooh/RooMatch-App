@@ -4,17 +4,22 @@
 Real-data deployment needs its own security and operations review.
 
 This repo holds the MySQL schema and a reproducible fictional dataset (deliverable 1), plus the app skeleton:
-a Vite + React + TypeScript frontend and an ASP.NET Core (.NET 8) minimal API. The rules engine and solver come later;
-their plain-English draft design is **[docs/assignment-algorithm.md](docs/assignment-algorithm.md)** (hard rules, the
-points score built from Samuel's weights, worked examples and open questions). How student data must be handled is
-in **[docs/data-privacy.md](docs/data-privacy.md)**.
-Everything runs locally: no cloud services, telemetry or external APIs.
+a Vite + React + TypeScript frontend and an ASP.NET Core (.NET 8) minimal API.
+
+Confirmed implementation order: (1) a manual assignment workspace with backend validation
+(**[docs/manual-workspace.md](docs/manual-workspace.md)**, with the milestone checklist); (2) before/after history,
+undo and optional reasons; (3) automatic draft generation (**[docs/assignment-algorithm.md](docs/assignment-algorithm.md)**);
+later, what-if alternatives and manager-approved preference adjustments. Student data handling is in
+**[docs/data-privacy.md](docs/data-privacy.md)**. The docs label every item as a CONFIRMED PRODUCT DECISION, a PROPOSED
+TECHNICAL DEFAULT (not approved) or a QUESTION FOR LODGE CONFIRMATION.
+Everything runs locally on one computer: no cloud services or cloud AI, telemetry, external APIs, automatic learning or live multi-user collaboration.
 
 ## Contents
 
 | Path | What it is |
 |---|---|
-| `docs/assignment-algorithm.md` | DRAFT design of the assignment engine, in plain English, for team and AI review. No code yet. |
+| `docs/manual-workspace.md` | DRAFT spec of the manual workspace (milestone 1), history/undo/reasons (milestone 2), schema gaps, and the milestone 1 checklist with acceptance criteria. |
+| `docs/assignment-algorithm.md` | DRAFT design of automatic draft generation, in plain English, for team and AI review. No code yet. |
 | `docs/data-privacy.md` | DRAFT privacy and security plan: field-by-field table for the Lodge's two forms, what is never stored, roles, encryption, retention, import, logging, questions for the Lodge. |
 | `db/schema.sql` | MySQL 8 schema: 11 tables plus the `v_apartment_capacity` view. Re-running it drops and recreates the tables. |
 | `db/seed_small.sql` | 32 tenants and 16 apartments (capacity 99), seed 2027. It needs at least 32 tenants to fit every edge case. |
@@ -86,8 +91,8 @@ npm run build    # type-check + production build into dist/
 - **Terms:** the Lodge has only Fall, Winter and Spring terms (no Summer). The seeds contain F2026 and W2027.
 - **Wards:** everyone is LDS; the Lodge is one stake of about 6 wards (150+ people each). Each apartment's ward is believed to be fixed across semesters (to confirm), so a tenant's ward follows from placement. A floor can hold parts of several wards and a ward spans both buildings. `apartments.ward_id` is proposed, not added.
 - **Accessible apartments:** a few first-floor apartments are handicap-adapted. `apartments.is_accessible` and a staff-confirmed accessibility need are proposed, not added.
-- **Priorities:** Samuel gave weights (allergy .98 treated as a hard rule, renewal stay .95, mutual requests .90, nearby renewal moves .85, sleep .70, one-way requests .55, extras .30). How they become points is in the design doc.
-- **Lodge forms (2026-10-31):** Samuel shared the field lists (no values) of the website application (Form 1) and the roommate-matching form (Form 2). The weights were revised from them (cleanliness, bedtime buckets, ward requests, two-semester continuity); Samuel's originals are kept next to the recommendations in the design doc. Gender, contact details, birthday, parking, comments and marketing source are never stored.
+- **Priorities:** Samuel gave weights (allergy .98, renewal stay .95, mutual requests .90, nearby renewal moves .85, sleep .70, one-way requests .55, extras .30). How they become points, and a revised weight set, are PROPOSED TECHNICAL DEFAULTS in the design doc, not approved.
+- **Lodge forms (2026-10-31):** Samuel shared the field lists (no values) of the website application (Form 1) and the roommate-matching form (Form 2). A weight revision based on them (cleanliness, bedtime buckets, ward requests, two-semester continuity) is proposed, with Samuel's originals kept alongside. Gender, contact details, birthday, parking, comments and marketing source are never stored.
 - **Proposed schema changes are deliberately not applied yet** (private room, ward, accessibility, allergy override). They are listed in the design doc for team review.
 - **Edge cases after the capacity change:** M-OTH-4 now holds 8, so oversubscribing it (E15) needs at least 9 contracts there. To keep the small set at exactly 32 tenants, E05 (non-mutual pair) and E14 (must-not-share pair) moved from M-STH-4 and M-FLAT-4 into M-OTH-4; their meaning is unchanged. E01 (5 in W-STD-2, cap 4) and E16 (override 5 < plan 6) still hold as-is.
 - **Spare capacity rule unchanged:** per plan, the apartments needed plus max(1, ceil(10%)). With the larger capacities this gives 13.9% overall spare in the large set (more than 10% because of per-plan rounding).
@@ -213,7 +218,7 @@ The **small** set has no random animals or allergies, so every conflict in it is
 3. A tenant has exactly one contract per term.
 4. "Current apartment" for a renewal means the apartment they live in during the previous term.
 5. `has_animal` means an approved assistance animal/ESA will live in the apartment (entered by staff from the Lodge's Reasonable Accommodation Process). `animal_allergy_restriction` currently stands for a self-reported allergy; the design doc proposes that only staff-confirmed documentation makes it a hard rule. Whether it also applies to neighbouring apartments is unknown.
-6. Placement restrictions (`required_floor`, `excluded_floor`, required or excluded apartment, `must_not_share_with`) are hard rules and are entered only after staff confirm them.
+6. Placement restrictions (`required_floor`, `excluded_floor`, required or excluded apartment, `must_not_share_with`) are entered only after staff confirm them; treating them as hard rules is a proposed default.
 7. **"Nearby" for renewal moves means the same floor and the same ward** (Samuel/manager input). Whether an adjacent floor counts at all is unknown, and the apartment-to-ward mapping is not available yet.
 8. **How many apartments of each plan are on each floor is unknown.** The seeds spread each plan across floors 1 to 4 in turn, and the apartment numbers are random.
 9. Roommate requests are stored one row per named person. Group requests are treated as the sum of those rows.
@@ -222,4 +227,4 @@ The **small** set has no random animals or allergies, so every conflict in it is
 12. Lower-priority fields (age, social preference, major, academic stage) are optional and only soft preferences. Similar values don't mean better roommates.
 13. **The private-room option is part of the contract** (presumed; not yet in the schema).
 14. **Each apartment's ward is fixed across semesters** (Samuel believes so; to confirm). Ward mapping not provided yet.
-15. **Tenants with a staff-confirmed accessibility need must get a handicap-adapted apartment.** Whether those apartments must stay reserved otherwise is unknown.
+15. **Accessibility:** giving tenants with a staff-confirmed need a handicap-adapted apartment is a proposed default; whether those apartments must stay reserved otherwise needs Lodge confirmation.

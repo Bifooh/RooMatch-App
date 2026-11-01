@@ -1,17 +1,18 @@
 # Roomatch: data privacy and security (DRAFT)
 
-**Status:** draft for team review, 2026-10-31. Nothing here is legal advice, and nothing here says what the law
+**Status:** draft for team review. Nothing here is legal advice, and nothing here says what the law
 requires. It sets out how we *intend* to handle student data and lists what we must ask the Lodge.
 
 **The MVP uses fictional data only.** No real student data may be loaded, copied, or tested with until the Lodge has
 approved it in writing and the security review in section 10 is done.
 
-**Decision labels used below**
+**Labels** (same as [assignment-algorithm.md](assignment-algorithm.md#how-to-read-the-labels))
 
 | Label | Meaning |
 |---|---|
-| **Recommended default (likely uncontroversial)** | We expect the team and reviewers to agree. Adopt unless someone objects. |
-| **Team decision needed** | A real tradeoff. The team (and possibly the Lodge) must choose. |
+| **CONFIRMED PRODUCT DECISION** | Decided by Samuel's team. |
+| **PROPOSED TECHNICAL DEFAULT** | Our suggestion; needs the team's explicit approval. |
+| **QUESTION FOR LODGE CONFIRMATION** | Only authorized Lodge staff can answer it. |
 
 ## 1. Why this matters
 
@@ -24,14 +25,15 @@ main tool is **minimization**: the assignment engine needs very little.
 
 | # | Principle | Label |
 |---|---|---|
-| P1 | **Collect the minimum.** Store only the fields the assignment needs (section 3). Everything else is dropped at import and never enters the database. | Recommended default |
-| P2 | **Store derived values, not raw ones.** Store the age, never the birthday. Store only the Yes/No allergy answer and whether staff confirmed documentation, never a diagnosis, allergy type, condition explanation or disability detail. | Recommended default |
-| P3 | **Pseudonymous tenant codes.** Every table refers to a tenant by a code. Real names live only in the separate identity table (`tenants`), used for matching roommate names and for staff display. | Recommended default |
-| P4 | **Never store:** home address, phone numbers, any email address, birthday, emergency contact, parking, payment or deposit details, free-form comments, marketing source ("how did you hear about us"), the Form 2 condition explanation, allergy documentation, or the Events & Amenities page. | Recommended default |
-| P5 | **Local only.** One computer, no cloud services, no telemetry, no external AI APIs, no CDN or analytics in the web app. The API listens on localhost only. | Recommended default |
-| P6 | **No real data in AI tools.** Never paste real student data (or screenshots of it) into ChatGPT, Claude, Grok, Copilot, Cursor or any other AI tool, including to "debug quickly". Use the fictional seeds instead. | Recommended default |
-| P7 | **Real data never touches the repo.** No real exports, dumps or screenshots in git, issues or chat. | Recommended default |
-| P8 | **Purge after use.** Personal data is deleted once a term's assignment is final and the retention period ends (section 7). | Recommended default (the length is a team decision) |
+| P0 | **Fictional data only** in the MVP, on one computer. | CONFIRMED PRODUCT DECISION |
+| P1 | **Collect the minimum.** Store only the fields the assignment needs (section 3). Other fields may pass through memory while a file is parsed, but are never stored, logged or displayed (section 8). | PROPOSED TECHNICAL DEFAULT |
+| P2 | **Store derived values, not raw ones.** Store the age, never the birthday. Store only the Yes/No allergy answer and whether staff confirmed documentation, never a diagnosis, allergy type, condition explanation or disability detail. | PROPOSED TECHNICAL DEFAULT |
+| P3 | **Pseudonymization, not anonymity.** Tables refer to tenants by ID and code, and names live in the separate identity table (`tenants`), used only for matching roommate names and for staff display. This **reduces** exposure but does **not** make the data anonymous: anyone with database access can join back to names, and even without names, apartment, plan, age and preferences can identify a person. Treat every table as personal data. | PROPOSED TECHNICAL DEFAULT |
+| P4 | **Never store:** home address, phone numbers, any email address, birthday, emergency contact, parking, payment or deposit details, free-form comments, marketing source ("how did you hear about us"), the Form 2 condition explanation, allergy documentation, or the Events & Amenities page. | PROPOSED TECHNICAL DEFAULT |
+| P5 | **Local only.** One computer, no cloud services, no telemetry, no cloud AI or external AI APIs, no CDN or analytics in the web app. The API listens on localhost only. | CONFIRMED PRODUCT DECISION (one computer, no cloud AI); details PROPOSED TECHNICAL DEFAULT |
+| P6 | **Real resident data stays outside developer tools and AI chats.** Never paste real data (or screenshots of it) into ChatGPT, Claude, Grok, Copilot, Cursor or any other AI tool, or into the repo, issues, PRs or chat. Developers work with the fictional seeds only. | CONFIRMED PRODUCT DECISION |
+| P7 | **Staff notes stay local** and are visible only to authorized property staff, not developers. | CONFIRMED PRODUCT DECISION |
+| P8 | **Purge after use** (section 7). | PROPOSED TECHNICAL DEFAULT; the retention period is a QUESTION FOR LODGE CONFIRMATION |
 
 ## 3. Field-by-field: what we keep from each form
 
@@ -57,7 +59,7 @@ were kept.
 | Floor plan checkboxes (the 10 plans) | 1 | yes | Contracted floor plan (taken from the signed contract, not the application) | Low | Hard rule H1. The contract is the authority if the two differ. |
 | "Not seeing the floorplan you want? Join the Waitlist" | 1 | no | nothing | Low | The waitlist is out of scope. |
 | Roommate request (optional free text) | 1 | yes | Original wording, per term | Medium (names other people) | Request matching. |
-| Second Semester (optional, $50 off both leases) | 1 | yes | A link between the tenant's two term contracts | Low | Continuity preference (algorithm doc S1b). |
+| Second Semester (optional, $50 off both leases) | 1 | yes | A link between the tenant's two term contracts | Low | Continuity, source (b) of S1 in the algorithm doc. |
 | Parking pass section | 1 | no | nothing | Medium | Not used. |
 | Emergency contact (first/last, phone, email) | 1 | no | nothing | High | Not used; belongs to a third person. |
 | Comments | 1 | no | nothing | **Unknown, possibly high** | Free text can contain anything. If staff see something relevant, they enter it as a structured, staff-confirmed restriction. |
@@ -91,28 +93,30 @@ paperwork.
 
 | ID | Decision | Label |
 |---|---|---|
-| D1 | Adopt the field table in section 3 as the import allow-list. | Recommended default |
-| D2 | Names stay in `tenants`; every other table uses tenant IDs. Staff screens show names; exports and logs use tenant codes. | Recommended default |
-| D3 | Store age as an integer from the form (not birthday). Optionally store only an age band (e.g. under 18, 18-20, 21-23, 24+). | Team decision needed (integer is simpler; bands are more private) |
-| D4 | How to link a student across forms and terms without keeping emails: (a) use the Lodge's own resident/contract ID if the export has one; (b) a keyed hash of the BYU-I email with a secret kept only on the machine; (c) staff link by hand. | Team decision needed ((a) preferred if available) |
-| D5 | "Other requests" free text: keep it only until staff convert it into structured data (ward request, staff restriction), then delete it. | Team decision needed (vs keeping it for the term, or never importing it) |
-| D6 | Gender is not stored. A mismatch between gender and the plan's building is shown to staff at import and not saved. | Recommended default |
-| D7 | Encryption at rest via full-disk encryption on the one computer (BitLocker, FileVault or LUKS). | Recommended default |
-| D8 | Also turn on MySQL InnoDB tablespace encryption. | Team decision needed (more protection, more key management) |
-| D9 | Retention: delete all personal data for a term N days after the assignment is final (e.g. after the semester's add/drop week). Keep only counts. | Team decision needed (the value of N; also ask the Lodge) |
-| D10 | Staff roles and login before any real data (section 5). | Recommended default (the MVP has no login today) |
-| D11 | The Form 2 condition explanation, allergy documentation and the Events & Amenities page are never imported or stored. Only the Yes/No answer and a staff "documentation confirmed" flag (who/when) are kept. | Recommended default |
+| D1 | Adopt the field table in section 3 as the import allow-list. | PROPOSED TECHNICAL DEFAULT |
+| D2 | Names stay in `tenants`; other tables use tenant IDs. Staff screens show names; exports and logs use tenant codes. | PROPOSED TECHNICAL DEFAULT |
+| D3 | Store age as an integer from the form, never the birthday. (Alternative: an age band only.) | PROPOSED TECHNICAL DEFAULT |
+| D4 | Identity across forms and terms: prefer the Lodge's own resident ID; otherwise a keyed hash of the BYU-I email (secret kept only on the machine) or staff linking by hand. Names alone never establish identity (duplicate names exist). | PROPOSED TECHNICAL DEFAULT; whether the ID is available is a QUESTION FOR LODGE CONFIRMATION |
+| D5 | "Other requests" free text: kept only until staff convert it into structured data (ward request, staff restriction), then deleted. | PROPOSED TECHNICAL DEFAULT |
+| D6 | Gender is not stored; a plan/gender mismatch is shown at import and not saved. | PROPOSED TECHNICAL DEFAULT |
+| D7 | Full-disk encryption on the one computer (BitLocker, FileVault or LUKS). | PROPOSED TECHNICAL DEFAULT |
+| D8 | MySQL InnoDB tablespace encryption on top of D7. Not enabled by default (more key management). | PROPOSED TECHNICAL DEFAULT |
+| D9 | One retention period per term for all personal data in Roomatch (section 7). | PROPOSED TECHNICAL DEFAULT; the period is a QUESTION FOR LODGE CONFIRMATION |
+| D10 | Staff login and roles before any real data (section 5). The MVP has none today. | PROPOSED TECHNICAL DEFAULT |
+| D11 | The Form 2 condition explanation, allergy documentation and the Events & Amenities page are never stored; only the Yes/No answer and a staff "documentation confirmed" flag (who/when). | PROPOSED TECHNICAL DEFAULT |
+| D12 | Roomatch **does not automatically delete** the manager's original import file. | CONFIRMED PRODUCT DECISION |
 
 ## 5. Who can see what
 
-The MVP has **no login at all**, which is fine for fictional data and not acceptable for real data. Proposed roles:
+The MVP has **no login at all**, which is fine for fictional data and not acceptable for real data. Proposed roles
+(PROPOSED TECHNICAL DEFAULT; who holds them is a QUESTION FOR LODGE CONFIRMATION):
 
 | Role | Can see | Can do |
 |---|---|---|
 | Housing manager | Everything in the app, including that a staff restriction exists (never its reason) | Confirm restrictions, overrides, accessibility needs, allergy documentation and approved animals; lock; finalize a draft; run imports and purges |
 | Assignment staff | Names, plans, preferences, requests, drafts | Edit drafts, resolve requests, work the review queue |
 | Read-only staff | Final assignments (names, apartment numbers) | Nothing |
-| Developers (students) | **Fictional data only** | Build and test. No access to real data unless the Lodge explicitly allows it. |
+| Developers (students) | **Fictional data only**; never real data, staff notes or real change history | Build and test. |
 
 The confidential reason behind a restriction (for example a conflict between two students) is never stored in
 Roomatch at all, so no role can see it here.
@@ -125,27 +129,53 @@ Roomatch at all, so no role can see it here.
   (a backup is still personal data).
 - No sync folders (OneDrive, Dropbox, Google Drive, iCloud) for the database, exports or backups.
 
-## 7. Retention and purge
+## 7. Retention
 
-- Data is per term. When a term's assignment is final and the retention period (D9) has passed, delete that term's
-  contracts, preferences, requests, restrictions and assignments, then any tenant identity no longer used.
+PROPOSED TECHNICAL DEFAULT: everything below belongs to one term and is purged together when that term's retention
+period ends. The period itself is a QUESTION FOR LODGE CONFIRMATION.
+
+| Data | Where it lives | Retention (proposed) |
+|---|---|---|
+| Original request wording (`roommate_requests.raw_text`) | Database | Until the term purge. Needed to show staff exactly what was asked and why a request was excluded. |
+| Structured requests (resolved tenant, status, exclusion reason; ward requests) | Database | Until the term purge. |
+| "Other requests" raw text | Database | Only until staff convert it (D5), then deleted. |
+| Review-queue copies (`review_queue.original_wording`, `reason`) | Database | Until the term purge, same as the request they copy. Purging requests must purge these copies too. |
+| Staff notes on edits | Database | Until the term purge; authorized staff only (P7). |
+| Change history and undo records | Database | Until the term purge. |
+| Baseline (generated) draft and final assignment | Database | Until the term purge. |
+| Success-measure counts (acceptance %, numbers of changes by reason, times) | Database or report | May be kept longer **only as counts with no tenant IDs**. |
+| Backups | Encrypted, Lodge-approved media | Same period; a backup is still personal data. |
+| The manager's original import file | Wherever the manager keeps it, outside Roomatch | Not deleted by Roomatch (D12). The manager handles it under Lodge rules (QUESTION FOR LODGE CONFIRMATION). |
+
 - Renewals do not need old history: each new term's import says where a renewing tenant lives now.
-- The purge is a single, logged command, and the log records only counts.
+- The purge is a single, logged command; the log records only counts.
 
-## 8. Import path
+## 8. Import path and what is parsed, stored, logged or retained
 
-1. Staff export a CSV from the Lodge's own systems (or the form tool), ideally already limited to the allowed columns.
-2. The importer reads **only allow-listed columns** (D1). Any other column is ignored and never written anywhere,
-   including logs and error messages. Ideally the condition-explanation column is not exported at all; if it is,
-   the importer skips it without reading its contents.
-3. Values are checked (valid plan, term, bucket, 1-5 range). Problems go to an import report that uses row numbers
-   and tenant codes, not names or emails.
-4. **The original file is deleted** after a successful import. Deletion on SSDs is not reliably permanent, which is
-   another reason full-disk encryption (D7) matters.
+1. The manager exports a CSV from the Lodge's systems (or the form tool), ideally already limited to the allowed
+   columns and without the condition-explanation column.
+2. The importer reads the file **from where the manager put it** and never copies it into the repo, the app folders or
+   anywhere else.
+3. CSV parsing reads whole rows into memory, so non-allowed columns are briefly in memory. They are **discarded
+   right after parsing** and never stored, logged, displayed or sent anywhere.
+4. Values are checked (valid plan, term, bucket, 1-5 range). Problems go to an import report using row numbers and
+   tenant codes, not names or emails.
+5. **Roomatch does not delete the original file** (D12). Deleting or keeping it is the manager's decision under
+   Lodge rules. Deletion on SSDs is not reliably permanent anyway, which is one reason for full-disk encryption (D7).
+
+| Data | Parsed temporarily (memory) | Stored (database) | Logged | Retained |
+|---|---|---|---|---|
+| Allow-listed fields (section 3) | Yes | Yes | No (IDs and counts only) | Until the term purge (section 7) |
+| Non-allowed columns (address, phone, emails, birthday, emergency contact, parking, comments, marketing source, events page) | Yes, during parsing only | **No** | **No** | No |
+| Condition explanation (Form 2) | Only if the export includes it; discarded immediately | **No** | **No** | No |
+| BYU-I email (as link key) | Yes | No (or a keyed hash, D4) | No | Hash, if used: until the term purge |
+| Gender | Yes, for the mismatch check | No | No | No |
+| Import report | Built in memory | Optional, row numbers and tenant codes only | Counts only | Until the term purge |
 
 ## 9. Logging
 
 - No personal data in logs: no names, emails, request text or preference values. Use tenant codes and IDs.
+- Staff notes and change-history details are never written to logs.
 - Do not log SQL parameters or request bodies. Keep ASP.NET Core logging at Information or above and check that
   exception messages don't echo row data.
 - The browser app has no analytics, tracking or third-party scripts.
@@ -158,9 +188,10 @@ Roomatch at all, so no role can see it here.
 3. A dry run of import and purge on fictional data.
 4. A named contact at the Lodge for questions and incidents.
 
-## 11. Questions to ask the Lodge
+## 11. Questions for Lodge confirmation
 
-These are questions, not conclusions. We are not claiming any law does or doesn't apply.
+Each item is a QUESTION FOR LODGE CONFIRMATION. These are questions, not conclusions. We are not claiming any law does
+or doesn't apply.
 
 1. Does the Lodge consider any of this data covered by **FERPA**, or by an agreement with **BYU-Idaho** (for example
    as BYU-I approved housing)? Are there BYU-I policies on how approved housing handles student data?
@@ -174,16 +205,19 @@ These are questions, not conclusions. We are not claiming any law does or doesn'
 7. Which computer will run it, who administers it, and is it already encrypted?
 8. Who should we contact if something goes wrong (a lost laptop, a mistaken export)?
 9. Are there state-law or other requirements the Lodge already follows for resident data?
+10. How long should staff notes, change history, request wording and review-queue copies be kept, and what should
+    happen to the manager's original import files?
+11. Which Lodge staff roles may see notes and history, and who approves new users?
 
 ## 12. Review questions for other AI tools
 
 1. Is any field in section 3 kept that the assignment doesn't really need? Is any needed field missing?
 2. Are age, school year and major worth keeping at all, given their low weights?
 3. Which is the best cross-term link for D4, and what are its risks?
-4. Is a keyed hash of an email really pseudonymous here? What could re-identify someone?
+4. Is a keyed hash of an email really pseudonymous here? What could re-identify someone even without names?
 5. What are the risks of free-text fields (roommate requests, other requests), and how should they be handled?
 6. What does a minimal but adequate login and role model look like for a single-computer, local app?
 7. Is full-disk encryption enough, or is database-level encryption worth the key management?
-8. What should the purge delete, and how can we prove it ran?
+8. What should the purge delete (including review-queue copies, notes and history), and how can we prove it ran?
 9. What questions to the Lodge are missing from section 11?
 10. What could go wrong with logs, crash dumps, browser storage or backups that this draft overlooks?
