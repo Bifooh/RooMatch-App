@@ -25,9 +25,10 @@ main tool is **minimization**: the assignment engine needs very little.
 | # | Principle | Label |
 |---|---|---|
 | P1 | **Collect the minimum.** Store only the fields the assignment needs (section 3). Everything else is dropped at import and never enters the database. | Recommended default |
-| P2 | **Store derived values, not raw ones.** Store the age, never the birthday. Store a yes/no "cannot live with an animal", never a diagnosis, allergy type or disability detail. | Recommended default |
+| P2 | **Store derived values, not raw ones.** Store the age, never the birthday. Store only the Yes/No allergy answer and whether staff confirmed documentation, never a diagnosis, allergy type, condition explanation or disability detail. | Recommended default |
 | P3 | **Pseudonymous tenant codes.** Every table refers to a tenant by a code. Real names live only in the separate identity table (`tenants`), used for matching roommate names and for staff display. | Recommended default |
-| P4 | **Never store:** home address, phone numbers, any email address, birthday, emergency contact, parking, payment or deposit details, free-form comments, or marketing source ("how did you hear about us"). | Recommended default |
+| P4 | **Never store:** home address, phone numbers, any email address, birthday, emergency contact, parking, payment or deposit details, free-form comments, marketing source ("how did you hear about us"), the
+Form 2 condition explanation, allergy documentation, or the Events & Amenities page. | Recommended default |
 | P5 | **Local only.** One computer, no cloud services, no telemetry, no external AI APIs, no CDN or analytics in the web app. The API listens on localhost only. | Recommended default |
 | P6 | **No real data in AI tools.** Never paste real student data (or screenshots of it) into ChatGPT, Claude, Grok, Copilot, Cursor or any other AI tool, including to "debug quickly". Use the fictional seeds instead. | Recommended default |
 | P7 | **Real data never touches the repo.** No real exports, dumps or screenshots in git, issues or chat. | Recommended default |
@@ -36,7 +37,8 @@ main tool is **minimization**: the assignment engine needs very little.
 ## 3. Field-by-field: what we keep from each form
 
 **Form 1** is the website application filled before the deposit. **Form 2** is the roommate-matching form filled
-after the security deposit is paid and before the semester. Only the field lists are recorded here; no real values
+after the security deposit is paid and before the semester; besides the matching questions it has an Emotional
+Support Animal information page, a Winter 2027 Events & Amenities page and a last page of minor items. Only the field lists are recorded here; no real values
 were kept.
 
 "Needed?" means needed for assignment: **yes**, **no**, or **derived** (used to compute something smaller, then dropped).
@@ -51,7 +53,7 @@ were kept.
 | Personal email | 1 | no | nothing | High | Not used. |
 | Gender (Male/Female) | 1 | derived | nothing | Medium | The contracted floor plan already fixes the building. Used at import only to flag a mismatch for staff. |
 | Age (0-99) | 1 and 2 | yes | Age as an integer (or an age band, see D3) | Medium | Optional low-weight extra; staff may need to know about under-18s. |
-| "Do you have any allergies or other disability that would prevent you from living with an assistance animal?" (Yes/No) | 1 | yes | One boolean: `animal_allergy_restriction` ("cannot live with an animal") | **High** (health/disability related) | Hard rule H5. The answer is already yes/no; no details are ever stored. |
+| "Do you have any allergies or other disability that would prevent you from living with an assistance animal?" (Yes/No) | 1 | yes | One boolean, `allergy_self_reported` (Yes on either form) | **High** (health/disability related) | Self-reported allergy concern (algorithm doc 4.3). No details. |
 | Semester/Year (Fall 2026, Winter 2027, Spring 2027) | 1 and 2 | yes | Term | Low | Which term the contract is for. |
 | Floor plan checkboxes (the 10 plans) | 1 | yes | Contracted floor plan (taken from the signed contract, not the application) | Low | Hard rule H1. The contract is the authority if the two differ. |
 | "Not seeing the floorplan you want? Join the Waitlist" | 1 | no | nothing | Low | The waitlist is out of scope. |
@@ -73,11 +75,18 @@ were kept.
 | Typical bedtime (8-9 pm, 10-11 pm, 12-1 am, later than 1 am) | 2 | yes | One of four buckets | Low | Scored preference. |
 | School year (Freshman/Sophomore/Junior/Senior) | 2 | yes | One of four values | Low | Low-weight extra. |
 | Major (free text) | 2 | yes (optional) | Free text, trimmed | Low | Low-weight extra. |
+| Emotional Support Animal information (policy text) | 2 | no | nothing | n/a | Informational page; no answer to store. |
+| "Do you have any allergies or medical reasons that would prevent you from residing with a roommate that has an emotional support animal/service animal?" (Yes/No, required) | 2 | yes | Same boolean, `allergy_self_reported` | **High** (health) | Self-reported allergy concern. |
+| "If yes to the previous question, please explain your condition." (optional free text) | 2 | **no** | **nothing, ever** | **Very high** (health information) | **Never imported or stored.** The importer must not read this column at all. |
+| Allergy documentation (doctor's note or allergy results) | emailed to the Lodge manager | no | Only `allergy_confirmed_by` / `allergy_confirmed_at` (who confirmed, when) | **Very high** | Stays with the Lodge manager, outside Roomatch. |
+| Winter 2027 Events & Amenities page (favorite gift-card stores, event type, raffle ideas, event requests, amenity suggestions) | 2 | no | nothing | Low | Doesn't affect matching; never stored. |
+| Last page (minor items) | 2 | no | nothing | Unknown | Doesn't affect matching; never stored. |
 
 Other data the engine uses that is not on either form: **ward of each apartment** (from staff), **accessible
-apartments** (from staff), **staff placement restrictions** (rule only, never the reason), and **who has an animal**.
-Neither form asks whether the tenant *has* an animal; that presumably comes from the Lodge's assistance-animal
-request process (open question Q6). We would store only a yes/no `has_animal`.
+apartments** (from staff), **staff placement restrictions** (rule only, never the reason), and **who has an approved
+animal**. Neither form asks whether the tenant *has* an animal. That comes from the Lodge's Reasonable Accommodation
+Process: staff enter a yes/no `has_animal` with who approved it and when, never the animal type, the disability or the
+paperwork.
 
 ## 4. Decisions
 
@@ -93,6 +102,7 @@ request process (open question Q6). We would store only a yes/no `has_animal`.
 | D8 | Also turn on MySQL InnoDB tablespace encryption. | Team decision needed (more protection, more key management) |
 | D9 | Retention: delete all personal data for a term N days after the assignment is final (e.g. after the semester's add/drop week). Keep only counts. | Team decision needed (the value of N; also ask the Lodge) |
 | D10 | Staff roles and login before any real data (section 5). | Recommended default (the MVP has no login today) |
+| D11 | The Form 2 condition explanation, allergy documentation and the Events & Amenities page are never imported or stored. Only the Yes/No answer and a staff "documentation confirmed" flag (who/when) are kept. | Recommended default |
 
 ## 5. Who can see what
 
@@ -100,7 +110,7 @@ The MVP has **no login at all**, which is fine for fictional data and not accept
 
 | Role | Can see | Can do |
 |---|---|---|
-| Housing manager | Everything in the app, including that a staff restriction exists (never its reason) | Confirm restrictions, overrides and accessibility needs; lock; finalize a draft; run imports and purges |
+| Housing manager | Everything in the app, including that a staff restriction exists (never its reason) | Confirm restrictions, overrides, accessibility needs, allergy documentation and approved animals; lock; finalize a draft; run imports and purges |
 | Assignment staff | Names, plans, preferences, requests, drafts | Edit drafts, resolve requests, work the review queue |
 | Read-only staff | Final assignments (names, apartment numbers) | Nothing |
 | Developers (students) | **Fictional data only** | Build and test. No access to real data unless the Lodge explicitly allows it. |
@@ -127,7 +137,8 @@ Roomatch at all, so no role can see it here.
 
 1. Staff export a CSV from the Lodge's own systems (or the form tool), ideally already limited to the allowed columns.
 2. The importer reads **only allow-listed columns** (D1). Any other column is ignored and never written anywhere,
-   including logs and error messages.
+   including logs and error messages. Ideally the condition-explanation column is not exported at all; if it is,
+   the importer skips it without reading its contents.
 3. Values are checked (valid plan, term, bucket, 1-5 range). Problems go to an import report that uses row numbers
    and tenant codes, not names or emails.
 4. **The original file is deleted** after a successful import. Deletion on SSDs is not reliably permanent, which is
@@ -159,7 +170,8 @@ These are questions, not conclusions. We are not claiming any law does or doesn'
 3. Do the forms' privacy notices cover this use? Does the Lodge want students told about automated matching?
 4. How long does the Lodge want us to keep the data, and does it have its own retention rule?
 5. Can the export include the Lodge's own resident or contract ID (D4), so we never need emails?
-6. Where does "has an animal" come from (the assistance-animal process?), and may we receive only a yes/no?
+6. Can staff give us only a yes/no for approved animals (Reasonable Accommodation Process) and for confirmed
+   allergy documentation, and can the export leave out the condition-explanation column entirely?
 7. Which computer will run it, who administers it, and is it already encrypted?
 8. Who should we contact if something goes wrong (a lost laptop, a mistaken export)?
 9. Are there state-law or other requirements the Lodge already follows for resident data?

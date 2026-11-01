@@ -212,7 +212,7 @@ The **small** set has no random animals or allergies, so every conflict in it is
 2. **Housing category (women or men) is on the floor plan,** and each category has its own building. A tenant's eligibility comes from their contracted plan.
 3. A tenant has exactly one contract per term.
 4. "Current apartment" for a renewal means the apartment they live in during the previous term.
-5. `has_animal` means an animal will live in the apartment. An allergy restriction is a hard rule against sharing with that tenant. Whether it also applies to neighbouring apartments is unknown.
+5. `has_animal` means an approved assistance animal/ESA will live in the apartment (entered by staff from the Lodge's Reasonable Accommodation Process). `animal_allergy_restriction` currently stands for a self-reported allergy; the design doc proposes that only staff-confirmed documentation makes it a hard rule. Whether it also applies to neighbouring apartments is unknown.
 6. Placement restrictions (`required_floor`, `excluded_floor`, required or excluded apartment, `must_not_share_with`) are hard rules and are entered only after staff confirm them.
 7. **"Nearby" for renewal moves means the same floor and the same ward** (Samuel/manager input). Whether an adjacent floor counts at all is unknown, and the apartment-to-ward mapping is not available yet.
 8. **How many apartments of each plan are on each floor is unknown.** The seeds spread each plan across floors 1 to 4 in turn, and the apartment numbers are random.

@@ -25,7 +25,9 @@ All names and tenant codes in the examples are **fictional** (they come from the
 | A1 | The contracted floor plan (and so the building) is a hard rule; the engine never changes contracts. | Recommended default | 4 |
 | A2 | Capacity is counted in bedroom slots (shared = 1, private = 2, apartment = 2 x bedrooms), plus any staff override. | Recommended default | 4.1 |
 | A3 | Staff restrictions, must-not-share, manager locks and staff-confirmed accessibility needs are hard rules. | Recommended default | 4 |
-| A4 | "Cannot live with an animal" is a hard rule with a recorded per-pair staff override, not a .98 weight. | Recommended default | 5.3 |
+| A4 | A **staff-confirmed** allergy (documentation received by the Lodge manager) is a hard rule against sharing with an approved animal holder, with a recorded per-pair override. It is not a .98 weight. | Recommended default | 4.3, 5.3 |
+| A15 | A tenant with an approved ESA/service animal who stays is pinned in their apartment like a lock; conflicts are solved by placing the allergic tenant elsewhere. | Recommended default | 4.3 |
+| A16 | `has_animal` is a staff-entered flag for an animal approved through the Lodge's Reasonable Accommodation Process, never taken from a form. | Recommended default | 4.3 |
 | A5 | Gender is not stored; the contracted plan decides the building. | Recommended default | 4.2 |
 | A6 | Points are earned per tenant (not per pair), proportional to how much is satisfied; missing data is neutral. | Recommended default | 5.1 |
 | A7 | Tiered (lexicographic) scoring: placed count, then tier 1, then tier 2, then tier 3. | Recommended default | 5.4 |
@@ -45,6 +47,7 @@ All names and tenant codes in the examples are **fictional** (they come from the
 | T7 | Whether accessible apartments must stay reserved even when nobody needs them. | **Team decision needed** | 4 |
 | T8 | Shy/Outgoing: does "match" mean the same answer? | **Team decision needed** | 5.1 |
 | T9 | How much priority renewals get over new tenants (fairness). | **Team decision needed** | 13 |
+| T10 | A **self-reported** allergy Yes without confirmed documentation. Recommended default: warn and avoid (tier 0b in 5.4, plus a review item); the hard rule applies only after confirmation. Alternative: hard from the start. | **Team decision needed** (with a recommended default) | 4.3 |
 
 ---
 
@@ -96,9 +99,10 @@ animal next to a severe allergy) must never be "worth it", no matter how many po
 | H2 | **Capacity, in bedroom slots.** See 4.1. | Samuel/manager input (2 per bedroom, private rooms); slot model is a proposal | Includes the staff `capacity_override`. |
 | H3 | **Staff placement restrictions**: required/excluded apartment, required/excluded floor. | Existing schema (`placement_restrictions`) | Entered only after staff confirm. The confidential reason is never stored. |
 | H4 | **must_not_share_with**: the two tenants may not be in the same apartment. | Existing schema | Beats any roommate request (E14). |
-| H5 | **Animal vs allergy.** A tenant who answered yes to Form 1's "allergies or other disability that would prevent you from living with an assistance animal?" may not share an apartment with a tenant who has an animal. | Samuel/manager input: weight .98, "people are very passionate about it"; the form question | Treated as **hard unless staff explicitly override it for that pair** (see 5.3). Neither form asks who *has* an animal; that presumably comes from the Lodge's assistance-animal request process (open question). Whether neighbouring apartments matter is an open question. |
+| H5 | **Animal vs confirmed allergy.** A tenant whose allergy is **staff-confirmed** (documentation received by the Lodge manager) may not share an apartment with a tenant who has an **approved** animal. | Samuel/manager input: weight .98, "people are very passionate about it"; the Lodge's ESA policy on Form 2 | Hard unless staff override it for that pair (5.3). A self-reported Yes alone is not hard; see 4.3. Whether neighbouring apartments matter is an open question. |
+| H9 | **Approved animal holders are not moved out.** A tenant with an approved ESA/service animal who stays in (or renews into) their apartment is pinned there like a manager lock. | The Lodge's ESA policy on Form 2 (via Samuel) | Our reading of "will not move the tenant with an ESA out" (4.3). |
 | H6 | **Accessibility need.** A tenant with a **staff-confirmed** accessibility need must get a handicap-adapted apartment of their plan. | Samuel/manager input: a few first-floor apartments are adapted; rule is a proposal | If their plan has no free adapted apartment, they go to the review queue. The opposite direction (others avoiding these apartments) is a soft rule, S7. |
-| H7 | **Manager locks.** A locked assignment is kept exactly as is. | Existing schema (`is_locked`, `locked_by`) | If a lock itself breaks H1 to H6, the engine refuses to build the draft and shows the conflict; it does not move the lock. |
+| H7 | **Manager locks.** A locked assignment is kept exactly as is. | Existing schema (`is_locked`, `locked_by`) | If a lock itself breaks another hard rule, the engine refuses to build the draft and shows the conflict; it does not move the lock. |
 | H8 | **One apartment per contract per draft**, and nobody is moved to another plan to "make room". | Existing schema | Unplaced tenants are reported honestly (E15). |
 
 ### 4.1 Capacity in bedroom slots
@@ -147,8 +151,11 @@ is paid and before the semester. The full field-by-field privacy table is in [da
 | Engine input | Comes from | Used for |
 |---|---|---|
 | Contracted floor plan, term | The signed contract (Form 1 shows the requested plan and semester) | H1 |
-| "Cannot live with an animal" | Form 1 allergy/disability question (Yes/No) | H5 |
-| Has an animal | **Not on either form** (presumably the assistance-animal process) | H5 |
+| Self-reported allergy concern | Allergy question on **both** forms (Yes/No): Form 1 asks about living with an assistance animal, Form 2 about a roommate with an ESA/service animal | Tier 0b, review item (4.3) |
+| Staff-confirmed allergy | Staff, after the Lodge manager receives documentation by email | H5 |
+| Has an approved animal | **Not on either form**: staff enter it from the Lodge's Reasonable Accommodation Process | H5, H9, tier 0b |
+| "If yes, please explain your condition" | Form 2, optional free text | **Never imported or stored** (health information). |
+| Events & Amenities page, last page | Form 2 | **Not stored**; doesn't affect matching. |
 | Second semester signup ($50 off both leases) | Form 1 | S10 continuity |
 | Roommate request (free text) | Form 1 and Form 2 ("people to live with") | S2, S5 |
 | Current apartment number (or N/A) | Form 2, checked against Lodge records | S1, S3 |
@@ -163,6 +170,28 @@ Two things to flag: tenants who list both roommate fields (Form 1 and Form 2) ma
 the later one, should win unless staff say otherwise (proposal). And the bedtime buckets skip 9-10 pm, which could
 confuse some students (a note for the Lodge, not an engine problem).
 
+### 4.3 Animals and allergies (the Lodge's ESA policy)
+
+Form 2 has an Emotional Support Animal information page (Samuel/manager input, paraphrased). Under the Fair Housing
+Act the Lodge allows assistance animals and ESAs with proper paperwork through its **Reasonable Accommodation
+Process**. It will not move the tenant with the ESA out of the apartment, and it cannot move a tenant out without
+proper documentation of a known allergy or other extenuating circumstances. Students with allergies or medical
+conditions that prevent living with an ESA roommate must email documentation (a doctor's note or allergy results)
+to the Lodge manager.
+
+How the engine follows this (proposal):
+
+| Situation | Data | Engine behaviour |
+|---|---|---|
+| Tenant answered **Yes** to the allergy question on Form 1 (assistance-animal wording) or Form 2 (ESA/service-animal wording) | `allergy_self_reported` | **Self-reported allergy concern.** Avoided strongly (tier 0b in 5.4) and shown as a "needs staff review" item whenever it conflicts with an animal holder. Not a hard rule yet (T10). |
+| The Lodge manager has the documentation and staff confirm it in the app | `allergy_confirmed_by`, `allergy_confirmed_at` (no details) | **Hard rule H5.** |
+| Tenant has an animal approved through the Reasonable Accommodation Process | `has_animal`, entered by staff with who/when (no animal or condition details) | Counts for H5 and tier 0b. Never read from a form. |
+| Approved animal holder stays or renews in place | as above | **H9:** pinned in their apartment. The allergic tenant is the one placed elsewhere. |
+| Documentation arrives **after** a draft exists | | The draft is re-checked; a new H5 conflict becomes a review item, and the fix moves the allergic tenant, not the animal holder. Timing is an open question. |
+
+The documentation itself, and the optional "please explain your condition" text on Form 2, **never enter Roomatch**
+(see [data-privacy.md](data-privacy.md)). Only the Yes/No and the staff confirmation are used.
+
 ## 5. The points score
 
 ### 5.1 Weights: Samuel's original and the recommended revision
@@ -174,7 +203,7 @@ answered; tenants who didn't answer are left out of the average.
 
 | Code | Preference | Samuel's original | Recommended | Tier | How a tenant earns the points | Reason for the change |
 |---|---|---|---|---|---|---|
-| (H5) | Avoid animal/allergy conflicts | .98 | hard rule | n/a | Never traded; staff override only (5.3). | A weight can be outbid; the manager's intent is "almost never". |
+| (H5) | Avoid animal/allergy conflicts | .98 | hard rule once documentation is confirmed; tier 0b before that | 0b | Confirmed: never traded, staff override only (5.3). Self-reported: minimized above all preferences (5.4). | A weight can be outbid; the manager's intent is "almost never". The Lodge's policy requires documentation before it acts. |
 | S1 | Renewing tenant who wants to **stay** stays in their apartment | .95 | .95 | 1 | All or nothing, only if the apartment's plan matches the new contract (not E11). | Unchanged. |
 | S10 | **Signed for two semesters**: same apartment in the second term | none (new) | .95 | 1 | All or nothing, scored like S1 in the second term. | Form 1 offers "$50 off both leases"; moving them mid-year is like breaking a renewal stay. **Flag (T3):** the Lodge may treat it as a promise, which would make it a hard rule or a manager lock. |
 | S2 | **Mutual** roommate requests | .90 | .90 | 1 | 90 x (mutual partners placed with them / mutual partners requested). | Unchanged. |
@@ -208,13 +237,15 @@ A weight, however high, can be outbid. At 98 points, an allergy conflict would b
 mutual pairs (4 x 90 = 360 points). That is why H5 is a **hard rule with an explicit staff override** instead of a
 98-point score: the system never trades it away; only a named staff member can, for one specific pair, and that
 override is recorded (proposed schema change in section 14). The .98 tells us how strongly the manager feels; the
-override is how "98% not 100%" is expressed safely.
+override is how "98% not 100%" is expressed safely. Before documentation is confirmed, a self-reported allergy sits in
+its own tier (0b) instead, so it still can't be traded for roommate preferences.
 
 ### 5.4 Proposal: tiers, with points inside each tier
 
 | Tier | Contents | Compared how |
 |---|---|---|
 | 0 | Number of contracted tenants placed | First. Always place as many people as the hard rules allow. |
+| 0b | Number of self-reported (unconfirmed) allergy concerns sharing with an approved animal holder | Minimized right after tier 0. Each remaining one is a review item. |
 | 1 | S1 renewal stay (95), S10 two-semester continuity (95), S2 mutual requests (90), S3 nearby renewal moves (85) | Points added up inside the tier. |
 | 2 | S8 cleanliness (75), S4 bedtime (70), S7 accessible-apartment penalty (-60), S5 one-way requests (55), S9 ward request (50) | Only used to choose between plans that tie on tiers 0 and 1. |
 | 3 | S6 extras (30 total: shy/outgoing, school year, age, major) | Only used to break ties on tiers 0 to 2. |
@@ -254,7 +285,7 @@ overwritten). Before the solver runs, each request is resolved to a tenant or se
 | Person does not exist | E04 | `unresolved`, not used. | Review item with the original wording. |
 | Person is in the other building | E07 | `excluded`: cannot share (H1). | Review item with the reason. |
 | Person contracted a different plan | E08 | `excluded` for matching: would need a contract change, which the engine never makes. | Review item "contract change needed?". |
-| Blocked by a hard rule (must_not_share, animal/allergy) | E14, E02 | `excluded` with the rule as reason. | Review item; the confidential reason is not shown. |
+| Blocked by a hard rule (must_not_share, confirmed allergy) or a self-reported allergy concern | E14, E02 | `excluded` with the rule or concern as reason. | Review item; the confidential reason is not shown. |
 
 After resolution, a request is **mutual** if both tenants resolved to each other, otherwise **one-way**. The schema
 already has the statuses (`pending`, `resolved`, `unresolved`, `ambiguous`, `excluded`) and the review queue types.
@@ -354,7 +385,7 @@ All tenants are fictional and come from the small seed (`db/seed_small.sql`, see
 | Case | Situation | How the design handles it |
 |---|---|---|
 | **E01** group too big | Five W-STD-2 tenants (FAKE-00001 to 00005) all request each other; W-STD-2 holds 4 (apartments 5555, 5842, 8314). | Cannot place all five together (H2). Split 4 + 1: the four each get 3 of 4 mutual partners = 67.5, total 270; the one gets 0. Split 3 + 2: 3 x 45 + 2 x 22.5 = 180. So 4 + 1 wins, and who is left out is only a tie-break, so it goes to the review queue. If one of them had a private room, an apartment would hold only 3 of them (2 + 1 + 1 slots), giving 3 + 2. |
-| **E02** animal vs allergy | Cyrus Puddlebeam (FAKE-00006, has an animal) and Vale Wafflebean (FAKE-00007, allergy restriction) request each other, M-STD-3. | H5 forbids sharing. The request is excluded with the reason; they go to different M-STD-3 apartments. Losing 2 x 90 mutual points does not matter: a hard rule is never traded. Only a recorded staff override could allow it. |
+| **E02** animal vs allergy | Cyrus Puddlebeam (FAKE-00006, has an animal) and Vale Wafflebean (FAKE-00007, allergy restriction) request each other, M-STD-3. | The seed has no confirmation fields yet, so Vale's flag counts as **self-reported**: tier 0b keeps them apart (M-STD-3 has spare apartments), the mutual request is not honored, and a "needs staff review" item explains why. Their 2 x 90 mutual points can't outweigh tier 0b. If staff confirm Vale's documentation, H5 makes the separation hard. If Cyrus were a staying renewal, H9 would pin him and Vale would be placed elsewhere. Only a recorded staff override could put them together. |
 | **E03** misspelling | Harper Pebblebottom (FAKE-00008) wrote "Quinn Jelyberry"; Quinn Jellyberry (FAKE-00009) wrote Harper's name correctly. W-STD-3. | Suggest FAKE-00009 (one letter off) for staff confirmation. Once confirmed the request becomes mutual (90 each if placed together). Until then it is treated as one-way from Quinn's side only. |
 | **E06** ambiguous | Piper Kazoonugget (FAKE-00013) requested just "Jordan"; Jordan Wobblewick (FAKE-00014) and Jordan Moontooth (FAKE-00015) are both in M-FLAT-4. | `ambiguous`; no guessing. Review item lists both Jordans. |
 | **E07** cross-building | Indigo Crumpetbeam (FAKE-00016, W-STD-3) requests Lark Jellynugget (FAKE-00017, M-STD-3). | Excluded (H1, different building), shown with the reason. |
@@ -397,6 +428,8 @@ None of these are in `db/schema.sql` yet. They follow the forms' real answer opt
 | `wards` table + `apartments.ward_id` (nullable) | S3 nearby, S9, ward on each placement. | Null until staff give the mapping. |
 | `apartments.is_accessible BOOLEAN DEFAULT FALSE` | H6 and S7. | |
 | New `placement_restrictions` type `requires_accessible` | Staff-confirmed accessibility need (H6). | Reuses the confirmed_by / confirmed_at audit fields. |
+| Replace `preferences.animal_allergy_restriction` with `allergy_self_reported` (Yes on either form) plus `allergy_confirmed_by` / `allergy_confirmed_at` | 4.3, H5, tier 0b. | Records only that documentation was confirmed, never its content. |
+| `has_animal` gains `animal_approved_by` / `animal_approved_at` | H5, H9. | Staff-entered from the Reasonable Accommodation Process. |
 | New `placement_restrictions` type `allergy_override` (pair) | Staff override of H5 for a specific pair. | Recorded with who confirmed it and when. |
 | `capacity_override` in slots instead of headcount (or add a slot override) | Express "one bedroom unavailable" (E16). | Open question. |
 | `priority_config` JSON layout | Store weights, tiers, caps and any random seed per draft. | Column exists; the layout is new. |
@@ -419,7 +452,8 @@ approves these changes.
 8. **Renewal "move":** if a tenant asks to move, is putting them back in the same apartment forbidden or just
    unrewarded?
 9. **Allergies:** do they ever matter between neighbouring apartments, or only inside one apartment? Who may approve
-   an override?
+   an override? How will staff mark documentation as confirmed (who, in which screen), and what happens if it
+   arrives after a draft or after assignments are final? Is a Yes without documentation treated as anything today?
 10. **Accessible apartments:** must they stay empty for possible late applicants, or may others use them when no one
     needs them? Who confirms an accessibility need?
 11. **Oversubscription:** when a plan has more contracts than places, who is left unplaced, and what happens to them?
@@ -429,8 +463,9 @@ approves these changes.
     whether they want similar roommates?
 14. **Terms:** is a tenant returning in Fall after Spring a "renewal"? Are Spring contracts different in any way?
 15. **Second semester signups:** does the Lodge promise the same apartment for both semesters, or only the discount?
-16. **Animals:** where does "has an animal" come from? Is the Form 1 question meant only for assistance animals, and
-    are any other animals allowed?
+16. **Animals:** can staff give us a yes/no list of approved animals from the Reasonable Accommodation Process each
+    term? Are any animals other than approved assistance animals/ESAs allowed? Does "will not move the ESA tenant
+    out" also cover renewals across terms (our reading, H9), and may an approved holder still choose to move?
 17. **Ward requests:** how often are they honored today, and are there wards students may not request?
 18. **Both roommate fields:** if Form 1 and Form 2 name different people, which one counts?
 19. **Cleanliness and bedtime:** do staff already use these answers when matching by hand, and how much?
@@ -443,7 +478,7 @@ Paste this document and ask:
    requests?
 2. Do the tiers in 5.4 match the stated weights, or do they distort them? Would you merge or split any tier?
 3. Give a concrete scenario where the tiered score produces a result the manager would clearly dislike.
-4. Is "hard rule with staff override" the right model for a .98 allergy weight?
+4. Is "hard rule after confirmed documentation, tier 0b before" the right model for a .98 allergy weight and the Lodge's ESA policy?
 5. Is the bedroom-slot capacity model correct and complete? What cases does it miss?
 6. What is the risk that seed-then-improve gets stuck in a poor plan, and what cheap fixes exist?
 7. Is the E01 outcome (4 + 1 split) reasonable? What scoring change would favor 3 + 2, and should it?
