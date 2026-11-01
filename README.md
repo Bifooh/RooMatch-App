@@ -33,7 +33,27 @@ ready for confidential student data.
 
 ## Run it locally
 
-Prerequisites: .NET 8 SDK, Node 20+ (verified with Node 24), MySQL 8.
+Prerequisites: **.NET 8** (SDK + ASP.NET Core runtime), Node 20+ (verified with Node 24), MySQL 8.
+
+### 0. .NET 8 on macOS (arm64)
+
+Projects target `net8.0`. A machine that only has .NET 10 at `/usr/local/share/dotnet` will fail at
+`dotnet run` with a missing `Microsoft.AspNetCore.App 8.0.0` framework error even if `Microsoft.NETCore.App 8`
+is present — the ASP.NET shared framework is separate.
+
+Preferred fix (keeps `net8.0`; do **not** retarget to net10 for this):
+
+```bash
+brew install dotnet@8
+export DOTNET_ROOT="$(brew --prefix dotnet@8)/libexec"
+export PATH="$DOTNET_ROOT:$PATH"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+dotnet --list-runtimes   # must show Microsoft.AspNetCore.App 8.x
+```
+
+Alternatives: install the .NET 8 ASP.NET Core runtime/SDK from https://dotnet.microsoft.com into
+`$HOME/.dotnet` and put that ahead of `/usr/local/share/dotnet` on `PATH`, or (with admin) install AspNetCore 8
+into `/usr/local/share/dotnet`. Confirm with `dotnet --list-runtimes` before running the API.
 
 ### 1. Database
 
