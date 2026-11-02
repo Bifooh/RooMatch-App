@@ -18,13 +18,17 @@ import type {
   DraftInfo,
   HistoryEntry,
   HistoryItem,
+  Restriction,
   RoommatePrepItem,
   RoommatePrepPayload,
+  RoommateRequest,
   TermInfo,
   UnassignedTenant,
   ValidationIssue,
   Workspace,
 } from './types'
+
+type BoardTab = 'women' | 'men'
 
 type Selected =
   | { kind: 'assigned'; contractId: number; apartmentId: number }
@@ -73,6 +77,38 @@ function matchesQuery(
     .some((v) => v!.toLowerCase().includes(n))
 }
 
+function buildingMatchesTab(building: string, apartmentNumber: string, tab: BoardTab) {
+  const b = building.toLowerCase()
+  if (tab === 'women') {
+    if (b.includes('women')) return true
+    if (b.includes('men')) return false
+    return apartmentNumber.startsWith('3')
+  }
+  if (b.includes('women')) return false
+  if (b.includes('men')) return true
+  return apartmentNumber.startsWith('2')
+}
+
+function planMatchesTab(floorPlanCode: string, tab: BoardTab) {
+  const code = floorPlanCode.toUpperCase()
+  if (tab === 'women') return code.startsWith('W-') || code.startsWith('W_')
+  return code.startsWith('M-') || code.startsWith('M_')
+}
+
+function labelTenantType(tenantType: string) {
+  if (tenantType === 'renewing') return 'Renewing'
+  if (tenantType === 'new') return 'New'
+  return tenantType
+}
+
+function labelStayPreference(stay: string | null | undefined) {
+  if (!stay) return null
+  if (stay === 'stay') return 'Prefer stay'
+  if (stay === 'move') return 'Open to move'
+  if (stay === 'no_preference') return 'No preference'
+  return stay
+}
+
 export default function App() {
   const [terms, setTerms] = useState<TermInfo[]>([])
   const [termId, setTermId] = useState<number | ''>('')
@@ -106,6 +142,8 @@ export default function App() {
   const [showPrep, setShowPrep] = useState(false)
   const [showTools, setShowTools] = useState(false)
   const [showColorGuide, setShowColorGuide] = useState(false)
+  const [boardTab, setBoardTab] = useState<BoardTab>('women')
+  const [detailsContractId, setDetailsContractId] = useState<number | null>(null)
   const [prep, setPrep] = useState<RoommatePrepPayload | null>(null)
   const [prepLoading, setPrepLoading] = useState(false)
   const [prepError, setPrepError] = useState<string | null>(null)
@@ -200,12 +238,19 @@ export default function App() {
 
   const plans = useMemo(() => {
     if (!workspace) return []
-    return [...new Set(workspace.apartments.map((a) => a.floorPlanCode))].sort()
-  }, [workspace])
+    return [
+      ...new Set(
+        workspace.apartments
+          .filter((a) => buildingMatchesTab(a.building, a.apartmentNumber, boardTab))
+          .map((a) => a.floorPlanCode),
+      ),
+    ].sort()
+  }, [workspace, boardTab])
 
   const filteredApartments = useMemo(() => {
     if (!workspace) return []
     return workspace.apartments.filter((a) => {
+      if (!buildingMatchesTab(a.building, a.apartmentNumber, boardTab)) return false
       if (planFilter && a.floorPlanCode !== planFilter) return false
       const aptHit = matchesQuery(query, {
         apartment: a.apartmentNumber,
@@ -221,11 +266,12 @@ export default function App() {
       )
       return !query.trim() || aptHit || occHit
     })
-  }, [workspace, query, planFilter])
+  }, [workspace, query, planFilter, boardTab])
 
   const filteredUnassigned = useMemo(() => {
     if (!workspace) return []
     return workspace.unassigned.filter((u) => {
+      if (!planMatchesTab(u.floorPlanCode, boardTab)) return false
       if (planFilter && u.floorPlanCode !== planFilter) return false
       return matchesQuery(query, {
         name: `${u.firstName} ${u.lastName}`,
@@ -233,7 +279,81 @@ export default function App() {
         plan: u.floorPlanCode,
       })
     })
-  }, [workspace, query, planFilter])
+  }, [workspace, query, planFilter, boardTab])
+
+  const waitingOtherTab = useMemo(() => {
+    if (!workspace) return 0
+    const other: BoardTab = boardTab === 'women' ? 'men' : 'women'
+    return workspace.unassigned.filter((u) => planMatchesTab(u.floorPlanCode, other)).length
+  }, [workspace, boardTab])
+
+  const studentDetails = useMemo(() => {
+    if (!workspace || detailsContractId == null) return null
+    const contractId = detailsContractId
+    let firstName = ''
+    let lastName = ''
+    let tenantCode = ''
+    let tenantType = ''
+    let stayPreference: string | null = null
+    let floorPlanCode = ''
+    let apartmentNumber: string | null = null
+    let isLocked = false
+    let lockedBy: string | null = null
+    let assignmentSource: string | null = null
+    let placed = false
+
+    const un = workspace.unassigned.find((u) => u.contractId === contractId)
+    if (un) {
+      firstName = un.firstName
+      lastName = un.lastName
+      tenantCode = un.tenantCode
+      tenantType = un.tenantType
+      stayPreference = un.stayPreference
+      floorPlanCode = un.floorPlanCode
+    } else {
+      for (const a of workspace.apartments) {
+        const o = a.occupants.find((x) => x.contractId === contractId)
+        if (!o) continue
+        firstName = o.firstName
+        lastName = o.lastName
+        tenantCode = o.tenantCode
+        tenantType = o.tenantType
+        stayPreference = o.stayPreference
+        floorPlanCode = a.floorPlanCode
+        apartmentNumber = a.apartmentNumber
+        isLocked = o.isLocked
+        lockedBy = o.lockedBy
+        assignmentSource = o.assignmentSource
+        placed = true
+        break
+      }
+    }
+    if (!tenantCode) return null
+
+    const requests: RoommateRequest[] = workspace.roommateRequests.filter(
+      (r) => r.contractId === contractId,
+    )
+    const restrictions: Restriction[] = workspace.restrictions.filter(
+      (r) => r.contractId === contractId,
+    )
+
+    return {
+      contractId,
+      firstName,
+      lastName,
+      tenantCode,
+      tenantType,
+      stayPreference,
+      floorPlanCode,
+      apartmentNumber,
+      placed,
+      isLocked,
+      lockedBy,
+      assignmentSource,
+      requests,
+      restrictions,
+    }
+  }, [workspace, detailsContractId])
 
   const selectedLabel = useMemo(() => {
     if (!workspace || !selected) return null
@@ -487,7 +607,35 @@ export default function App() {
     setSelected({ kind: 'unassigned', contractId: u.contractId })
     setSwapTarget('')
     setMoveTarget('')
+    setDetailsContractId(u.contractId)
   }
+
+  function selectAssigned(contractId: number, apartmentId: number) {
+    setSelected({ kind: 'assigned', contractId, apartmentId })
+    setSwapTarget('')
+    setMoveTarget('')
+    setDetailsContractId(contractId)
+  }
+
+  function closeDetails() {
+    setDetailsContractId(null)
+  }
+
+  useEffect(() => {
+    if (detailsContractId == null) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setDetailsContractId(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [detailsContractId])
+
+  useEffect(() => {
+    if (planFilter && !plans.includes(planFilter)) setPlanFilter('')
+  }, [boardTab, plans, planFilter])
 
   /** Chip color from contracts.tenant_type + stay_preference (renewals only). */
   function tenantChipClass(tenantType: string, stayPreference: string | null | undefined) {
@@ -610,7 +758,29 @@ export default function App() {
       {workspace && (
         <>
           <div className="board-head">
-            <h2>Apartments</h2>
+            <div className="board-title-row">
+              <h2>Apartments</h2>
+              <div className="board-tabs" role="tablist" aria-label="Building">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={boardTab === 'women'}
+                  className={boardTab === 'women' ? 'tab active' : 'tab'}
+                  onClick={() => setBoardTab('women')}
+                >
+                  Women
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={boardTab === 'men'}
+                  className={boardTab === 'men' ? 'tab active' : 'tab'}
+                  onClick={() => setBoardTab('men')}
+                >
+                  Men
+                </button>
+              </div>
+            </div>
             <div className="board-filters">
               <label>
                 Find
@@ -623,7 +793,7 @@ export default function App() {
               <label>
                 Floor plan
                 <select value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
-                  <option value="">All</option>
+                  <option value="">All on this tab</option>
                   {plans.map((p) => (
                     <option key={p} value={p}>
                       {p}
@@ -711,13 +881,8 @@ export default function App() {
                                 o.tenantType,
                                 o.stayPreference,
                               )}
-                              onClick={() =>
-                                setSelected({
-                                  kind: 'assigned',
-                                  contractId: o.contractId,
-                                  apartmentId: a.apartmentId,
-                                })
-                              }
+                              onClick={() => selectAssigned(o.contractId, a.apartmentId)}
+                              aria-haspopup="dialog"
                             >
                               {o.firstName} {o.lastName}
                               {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
@@ -864,9 +1029,18 @@ export default function App() {
               </section>
 
               <section className="panel" aria-label="Waiting list">
-                <h2>Waiting ({filteredUnassigned.length})</h2>
+                <h2>
+                  Waiting · {boardTab === 'women' ? 'Women' : 'Men'} ({filteredUnassigned.length})
+                </h2>
+                <p className="muted waiting-scope">
+                  Showing unassigned on this tab’s floor plans
+                  {waitingOtherTab > 0
+                    ? ` · ${waitingOtherTab} waiting on the other tab`
+                    : ''}
+                  .
+                </p>
                 {filteredUnassigned.length === 0 && (
-                  <p className="empty">Everyone on this plan has a spot (or filters hide them).</p>
+                  <p className="empty">No one waiting on this tab (or filters hide them).</p>
                 )}
                 <ul className="unassigned-list">
                   {filteredUnassigned.map((u) => (
@@ -879,6 +1053,7 @@ export default function App() {
                           u.stayPreference,
                         )}
                         onClick={() => selectUnassigned(u)}
+                        aria-haspopup="dialog"
                       >
                         {u.firstName} {u.lastName}
                         <span className="muted"> · {u.floorPlanCode}</span>
@@ -1264,6 +1439,118 @@ export default function App() {
         <p className="busy" role="status">
           Working…
         </p>
+      )}
+
+      {studentDetails && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeDetails()
+          }}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-details-title"
+          >
+            <div className="modal-head">
+              <h2 id="student-details-title">
+                {studentDetails.firstName} {studentDetails.lastName}
+              </h2>
+              <button type="button" className="modal-close" onClick={closeDetails} autoFocus>
+                Close
+              </button>
+            </div>
+            <dl className="detail-grid">
+              <div>
+                <dt>Tenant code</dt>
+                <dd>{studentDetails.tenantCode}</dd>
+              </div>
+              <div>
+                <dt>Contract type</dt>
+                <dd>{labelTenantType(studentDetails.tenantType)}</dd>
+              </div>
+              <div>
+                <dt>Stay preference</dt>
+                <dd>{labelStayPreference(studentDetails.stayPreference) ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Floor plan</dt>
+                <dd>{studentDetails.floorPlanCode || '—'}</dd>
+              </div>
+              <div>
+                <dt>Current apartment</dt>
+                <dd>
+                  {studentDetails.placed
+                    ? studentDetails.apartmentNumber ?? '—'
+                    : 'Unassigned (waiting)'}
+                </dd>
+              </div>
+              {studentDetails.placed && (
+                <>
+                  <div>
+                    <dt>Lock</dt>
+                    <dd>
+                      {studentDetails.isLocked
+                        ? `Locked${studentDetails.lockedBy ? ` by ${studentDetails.lockedBy}` : ''}`
+                        : 'Not locked'}
+                    </dd>
+                  </div>
+                  {studentDetails.assignmentSource && (
+                    <div>
+                      <dt>Assignment source</dt>
+                      <dd>{studentDetails.assignmentSource}</dd>
+                    </div>
+                  )}
+                </>
+              )}
+            </dl>
+
+            <section className="modal-section" aria-label="Roommate requests">
+              <h3>Roommate request wording</h3>
+              {studentDetails.requests.length === 0 ? (
+                <p className="muted">None on file for this contract.</p>
+              ) : (
+                <ul className="modal-list">
+                  {studentDetails.requests.map((r) => (
+                    <li key={r.requestId}>
+                      <span className="mono">“{r.rawText}”</span>
+                      <span className="muted">
+                        {' '}
+                        · {r.status}
+                        {r.exclusionReason ? ` · ${r.exclusionReason}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="modal-section" aria-label="Restrictions">
+              <h3>Restrictions</h3>
+              {studentDetails.restrictions.length === 0 ? (
+                <p className="muted">None on file for this contract.</p>
+              ) : (
+                <ul className="modal-list">
+                  {studentDetails.restrictions.map((r) => (
+                    <li key={r.restrictionId}>
+                      <strong>{r.restrictionType}</strong>
+                      {r.value ? ` = ${r.value}` : ''}
+                      {r.description ? ` — ${r.description}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <p className="muted modal-hint">
+              Close with Escape or Close. Use Adjust in the side panel to move (click Move — no
+              drag-and-drop).
+            </p>
+          </div>
+        </div>
       )}
     </main>
   )

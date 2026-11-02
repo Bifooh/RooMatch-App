@@ -78,13 +78,23 @@ export type RoommateRequest = {
   exclusionReason: string | null
 }
 
+export type Restriction = {
+  restrictionId: number
+  contractId: number
+  restrictionType: string
+  apartmentId: number | null
+  otherTenantId: number | null
+  value: string | null
+  description: string
+}
+
 export type Workspace = {
   draft: DraftInfo
   term: TermInfo
   apartments: ApartmentRow[]
   unassigned: UnassignedTenant[]
   roommateRequests: RoommateRequest[]
-  restrictions: unknown[]
+  restrictions: Restriction[]
   issues: ValidationIssue[]
   validationLimitations: string[]
 }

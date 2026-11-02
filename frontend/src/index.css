@@ -140,9 +140,43 @@ body {
   margin: 0.5rem 0 0.75rem;
 }
 
+.board-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
 .board-head h2 {
   margin: 0;
   font-size: 1.15rem;
+}
+
+.board-tabs {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.board-tabs .tab {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--muted);
+  padding: 0.4rem 0.9rem !important;
+  font-weight: 560;
+}
+
+.board-tabs .tab.active {
+  background: var(--accent-soft) !important;
+  color: var(--accent);
+}
+
+.waiting-scope {
+  margin: 0 0 0.55rem;
+  line-height: 1.35;
 }
 
 .board-filters {
@@ -513,3 +547,99 @@ code {
 }
 
 h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+
+/* —— Student details modal —— */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 35, 48, 0.38);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 40;
+}
+
+.modal {
+  width: min(32rem, 100%);
+  max-height: min(90vh, 40rem);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem 1.1rem 1.15rem;
+  box-shadow: 0 12px 40px rgba(26, 35, 48, 0.16);
+}
+
+.modal-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  font-size: 1.35rem;
+}
+
+.modal-close {
+  flex-shrink: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 0.85rem;
+  margin: 0 0 0.85rem;
+}
+
+.detail-grid > div {
+  margin: 0;
+}
+
+.detail-grid dt {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.detail-grid dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.95rem;
+}
+
+.modal-section {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--line);
+}
+
+.modal-section h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.modal-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.modal-hint {
+  margin: 0.85rem 0 0;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+@media (max-width: 520px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}
