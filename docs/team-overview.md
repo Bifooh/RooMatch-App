@@ -16,7 +16,7 @@ Details: `docs/manual-assignment.md`, `docs/roommate-request-prep.md`, `docs/aut
 
 ## Manager flow (demo)
 
-1. Open `http://localhost:5173`.
+1. Open the UI (`npm run dev` → usually `http://127.0.0.1:5173`; use `:5174` if that port is taken).
 2. Confirm **Term** (e.g. W2027).
 3. Click **Make first plan** — apartments fill as boxes; summary banner shows counts.
 4. Click a student → **Adjust** (move / unassign / swap).

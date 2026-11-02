@@ -155,7 +155,8 @@ export default function App() {
     fetchDrafts(termId)
       .then((d) => {
         setDrafts(d)
-        if (d[0]) setDraftId(d[0].draftId)
+        // Prefer newest plan so managers land on recent work, not seed drafts.
+        if (d.length) setDraftId(d[d.length - 1].draftId)
       })
       .catch((e: Error) => setBanner({ kind: 'bad', text: e.message }))
     void reloadPrep(termId)
@@ -419,7 +420,7 @@ export default function App() {
   }
 
   async function onGenerateMatch() {
-    if (termId === '' || busy || matching || !operator.trim()) return
+    if (termId === '' || busy || matching) return
     setMatching(true)
     setBusy(true)
     setBanner(null)
@@ -429,7 +430,7 @@ export default function App() {
         draftName: null,
         copyFromDraftId: draftId === '' ? null : draftId,
         copyLocks: true,
-        performedBy: operator.trim(),
+        performedBy: operator.trim() || 'Fictional Operator',
         notes: 'auto-match v1',
       })
       if (!res.ok || !res.draft) {
@@ -515,14 +516,18 @@ export default function App() {
             type="button"
             className="btn-primary"
             onClick={() => void onGenerateMatch()}
-            disabled={termId === '' || busy || matching || !operator.trim()}
+            disabled={termId === '' || busy || matching}
             aria-busy={matching}
           >
-            {matching ? 'Making plan…' : 'Make first plan'}
+            {matching
+              ? 'Making plan…'
+              : drafts.length === 0
+                ? 'Make first plan'
+                : 'Make another plan'}
           </button>
         </div>
         <p className="hero-hint">
-          Places people by floor plan and resolved roommate pairs. You can move anyone afterward.
+          Places people by floor plan and roommate pairs. You can move anyone afterward.
         </p>
       </header>
 
@@ -539,7 +544,7 @@ export default function App() {
       )}
       {matchSummary && (
         <p className="banner info" role="status">
-          Last generate: {matchSummary}
+          Last plan: {matchSummary}
         </p>
       )}
 
