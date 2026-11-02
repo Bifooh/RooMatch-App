@@ -98,7 +98,7 @@ public class AssignmentServiceDbTests
             $"Move test {Guid.NewGuid():N}"[..20], CopyFromDraftId: null, CopyLocks: false, null));
         Assert.NotNull(draft);
 
-        // Contract 1 is W-STD-2 (plan 1). Apartment 1 is 5555 W-STD-2.
+        // Contract 1 is W-STD-2 (plan 1). Apartment 1 is 3102 W-STD-2.
         var ok = await svc.MoveAsync(draft!.DraftId, new MoveRequest(1, 1));
         Assert.True(ok.Ok);
 
@@ -124,7 +124,7 @@ public class AssignmentServiceDbTests
             $"Swap test {Guid.NewGuid():N}"[..20], null, false, null));
         Assert.NotNull(draft);
 
-        // Fill apt 1 (5555, cap 4) with contracts 1-4 and apt 2 (5842) with contract 5 — then move 2,3,4 out...
+        // Fill apt 1 (3102, cap 4) with contracts 1-4 and apt 2 (3227) with contract 5 — then move 2,3,4 out...
         // Simpler: place contract 1 in apt1, contract 2 in apt2, then swap.
         Assert.True((await svc.MoveAsync(draft!.DraftId, new MoveRequest(1, 1))).Ok);
         Assert.True((await svc.MoveAsync(draft.DraftId, new MoveRequest(2, 2))).Ok);
@@ -160,7 +160,7 @@ public class AssignmentServiceDbTests
             $"Lock test {Guid.NewGuid():N}"[..20], seed.DraftId, CopyLocks: true, null));
         Assert.NotNull(working);
 
-        // Contract 24 locked on apt 11 (5793), required_floor=1 — try move to apt 12 (7679, floor 2)
+        // Contract 24 locked on apt 11 (2421), required_floor=1 — try move to apt 12 (2401, floor 2)
         var locked = await svc.MoveAsync(working!.DraftId, new MoveRequest(24, 12));
         Assert.False(locked.Ok);
         Assert.Contains(locked.Issues, i => i.Code == ValidationIssue.Codes.AssignmentLocked);

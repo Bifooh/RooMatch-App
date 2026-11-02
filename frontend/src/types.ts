@@ -40,6 +40,8 @@ export type AssignedTenant = {
   lockedBy: string | null
   lockedAt: string | null
   assignmentSource: string | null
+  tenantType: string
+  stayPreference: string | null
 }
 
 export type ApartmentRow = {
@@ -63,6 +65,7 @@ export type UnassignedTenant = {
   floorPlanCode: string
   floorPlanId: number
   tenantType: string
+  stayPreference: string | null
 }
 
 export type RoommateRequest = {

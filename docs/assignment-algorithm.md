@@ -370,11 +370,11 @@ Every placement carries a short explanation staff can read and, if wanted, share
 
 - **Points breakdown** by line (S1 to S10), including the points the tenant *could* have earned and didn't.
 - **Why not better:** the best-scoring alternative apartment for this tenant and the hard rule, lock or trade-off
-  that blocked it, for example "apartment 2620 would have kept your roommate request, but a staff restriction
+  that blocked it, for example "apartment 2120 would have kept your roommate request, but a staff restriction
   applies" or "the only same-floor apartment of your plan is full of renewals who are staying".
 - Confidential reasons are never shown, only that a staff rule applied.
 
-Example (fictional): *"Placed in 3616 (W-STD-3, floor 1). Renewal stay kept (+95). Mutual request with Parker
+Example (fictional): *"Placed in 3301 (W-STD-3, floor 1). Renewal stay kept (+95). Mutual request with Parker
 Tumblewhump kept (+90). Bedtime: both known roommates in your bucket (+70). Tier 1: 185 of 185."*
 
 ## 12. Worked examples from the test data
@@ -384,17 +384,17 @@ All tenants are fictional and come from the small seed (`db/seed_small.sql`, see
 
 | Case | Situation | How the design handles it |
 |---|---|---|
-| **E01** group too big | Five W-STD-2 tenants (FAKE-00001 to 00005) all request each other; W-STD-2 holds 4 (apartments 5555, 5842, 8314). | Cannot place all five together (H2). Split 4 + 1: the four each get 3 of 4 mutual partners = 67.5, total 270; the one gets 0. Split 3 + 2: 3 x 45 + 2 x 22.5 = 180. So 4 + 1 wins, and who is left out is only a tie-break, so it goes to the review queue. If one of them had a private room, an apartment would hold only 3 of them (2 + 1 + 1 slots), giving 3 + 2. |
+| **E01** group too big | Five W-STD-2 tenants (FAKE-00001 to 00005) all request each other; W-STD-2 holds 4 (apartments 3102, 3227, 3125). | Cannot place all five together (H2). Split 4 + 1: the four each get 3 of 4 mutual partners = 67.5, total 270; the one gets 0. Split 3 + 2: 3 x 45 + 2 x 22.5 = 180. So 4 + 1 wins, and who is left out is only a tie-break, so it goes to the review queue. If one of them had a private room, an apartment would hold only 3 of them (2 + 1 + 1 slots), giving 3 + 2. |
 | **E02** animal vs allergy | Cyrus Puddlebeam (FAKE-00006, has an animal) and Vale Wafflebean (FAKE-00007, allergy restriction) request each other, M-STD-3. | The seed has no confirmation fields yet, so Vale's flag counts as **self-reported**: tier 0b keeps them apart (M-STD-3 has spare apartments), the mutual request is not honored, and a "needs staff review" item explains why. Their 2 x 90 mutual points can't outweigh tier 0b. If staff confirm Vale's documentation, H5 makes the separation hard. If Cyrus were a staying renewal, H9 would pin him and Vale would be placed elsewhere. Only a recorded staff override could put them together. |
 | **E03** misspelling | Harper Pebblebottom (FAKE-00008) wrote "Quinn Jelyberry"; Quinn Jellyberry (FAKE-00009) wrote Harper's name correctly. W-STD-3. | Suggest FAKE-00009 (one letter off) for staff confirmation. Once confirmed the request becomes mutual (90 each if placed together). Until then it is treated as one-way from Quinn's side only. |
 | **E06** ambiguous | Piper Kazoonugget (FAKE-00013) requested just "Jordan"; Jordan Wobblewick (FAKE-00014) and Jordan Moontooth (FAKE-00015) are both in M-FLAT-4. | `ambiguous`; no guessing. Review item lists both Jordans. |
 | **E07** cross-building | Indigo Crumpetbeam (FAKE-00016, W-STD-3) requests Lark Jellynugget (FAKE-00017, M-STD-3). | Excluded (H1, different building), shown with the reason. |
 | **E08** different plan | FAKE-00018 (M-STD-3) and FAKE-00019 (M-OTH-4) request each other. | Cannot share without a contract change (H1). Flagged "contract change needed?"; the engine never edits contracts. |
-| **E09** renewal pair stays | Wren Moontooth (FAKE-00020) and Parker Tumblewhump (FAKE-00021) live in 3616 (W-STD-3, floor 1), want to stay, and request each other. | Seeded first (step 3). Each earns S1 95 + S2 90 = 185 tier-1 points. The other 4 slots in 3616 are filled by others. |
-| **E10** renewal move | Kestrel Moonwhump (FAKE-00022) lives in 5793 (M-STD-3, men's floor 1) and wants to move. | Nearby means same floor and same ward. In the small seed the only other M-STD-3 apartment, 7679, is on floor 2, so S3 earns 0 there; the explanation says "no other M-STD-3 apartment on your floor". Whether an adjacent floor gets partial credit is open. (5793 also holds E12's locked tenant.) |
-| **E11** plan changed | Kestrel Kazootoes (FAKE-00023) lives in 7679 (M-STD-3, floor 2), wants to stay, but contracted M-FLAT-4. | Staying breaks H1, so S1 is impossible and the case is flagged. Treated as a move: M-FLAT-4 apartment 2620 is on the same floor, so it earns S3 (ward to be confirmed once mapped). |
-| **E14** restriction vs request | Logan Tumbletoes (FAKE-00027) requests Dakota Moontoes (FAKE-00026); staff confirmed they must not share. Both M-OTH-4. | H4 wins; the request is excluded with "blocked by a staff restriction". In the small seed M-OTH-4 has only one apartment (7215), so at most one of them can be placed at all. |
-| **E15** oversubscribed | M-OTH-4 has 10 contracts and 8 places (one apartment, 7215). | Tier 0: at most 8 placed; at least 2 unplaced, and because of E14 one of those must be FAKE-00026 or FAKE-00027. Nobody is moved to another plan. Staff see the shortfall and choose (section 10). In the large seed it is 91 contracts for 80 places. |
+| **E09** renewal pair stays | Wren Moontooth (FAKE-00020) and Parker Tumblewhump (FAKE-00021) live in 3301 (W-STD-3, floor 1), want to stay, and request each other. | Seeded first (step 3). Each earns S1 95 + S2 90 = 185 tier-1 points. The other 4 slots in 3301 are filled by others. |
+| **E10** renewal move | Kestrel Moonwhump (FAKE-00022) lives in 2421 (M-STD-3, men's floor 1) and wants to move. | Nearby means same floor and same ward. In the small seed the only other M-STD-3 apartment, 2401, is on floor 2, so S3 earns 0 there; the explanation says "no other M-STD-3 apartment on your floor". Whether an adjacent floor gets partial credit is open. (2421 also holds E12's locked tenant.) |
+| **E11** plan changed | Kestrel Kazootoes (FAKE-00023) lives in 2401 (M-STD-3, floor 2), wants to stay, but contracted M-FLAT-4. | Staying breaks H1, so S1 is impossible and the case is flagged. Treated as a move: M-FLAT-4 apartment 2120 is on the same floor, so it earns S3 (ward to be confirmed once mapped). |
+| **E14** restriction vs request | Logan Tumbletoes (FAKE-00027) requests Dakota Moontoes (FAKE-00026); staff confirmed they must not share. Both M-OTH-4. | H4 wins; the request is excluded with "blocked by a staff restriction". In the small seed M-OTH-4 has only one apartment (2301), so at most one of them can be placed at all. |
+| **E15** oversubscribed | M-OTH-4 has 10 contracts and 8 places (one apartment, 2301). | Tier 0: at most 8 placed; at least 2 unplaced, and because of E14 one of those must be FAKE-00026 or FAKE-00027. Nobody is moved to another plan. Staff see the shortfall and choose (section 10). In the large seed it is 91 contracts for 80 places. |
 
 ## 13. Fairness
 

@@ -18,6 +18,14 @@
   --women-soft: #e8eef6;
   --men: #4a6741;
   --men-soft: #e8f0e6;
+  --renew-stay: #8f3a3a;
+  --renew-stay-bg: #f6eaea;
+  --renew-move: #8a5a00;
+  --renew-move-bg: #f7efdf;
+  --renew: #7a4a4a;
+  --renew-bg: #f3ecec;
+  --tenant-new: #2f5f8f;
+  --tenant-new-bg: #e7eef6;
   --fill-low: #f7f9fb;
   --fill-mid: #eef4f8;
   --fill-high: #e3edf2;
@@ -216,17 +224,95 @@ body {
   background: var(--panel) !important;
   border-radius: 4px;
   line-height: 1.25;
+  border-left: 3px solid transparent;
+}
+
+.chip.chip-renew-stay {
+  background: var(--renew-stay-bg) !important;
+  border-left-color: var(--renew-stay);
+  color: var(--ink);
+}
+
+.chip.chip-renew-move {
+  background: var(--renew-move-bg) !important;
+  border-left-color: var(--renew-move);
+}
+
+.chip.chip-renew {
+  background: var(--renew-bg) !important;
+  border-left-color: var(--renew);
+}
+
+.chip.chip-new {
+  background: var(--tenant-new-bg) !important;
+  border-left-color: var(--tenant-new);
 }
 
 .chip.selected {
-  background: var(--accent-soft) !important;
-  border-color: var(--accent) !important;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .chip .lock-mark {
   color: var(--warn);
   font-size: 0.75rem;
 }
+
+.legend-toggle {
+  align-self: end;
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0.35rem 0.2rem !important;
+}
+
+.color-guide {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.color-guide p { margin: 0 0 0.45rem; }
+.color-guide p:last-child { margin-bottom: 0; }
+.color-guide strong { color: var(--ink); font-weight: 600; }
+
+.color-guide-swatches {
+  list-style: none;
+  margin: 0 0 0.65rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+}
+
+.color-guide-swatches li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.swatch {
+  width: 1.1rem;
+  height: 0.85rem;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  display: inline-block;
+}
+
+.swatch.chip-renew-stay { background: var(--renew-stay-bg); border-left: 3px solid var(--renew-stay); }
+.swatch.chip-renew-move { background: var(--renew-move-bg); border-left: 3px solid var(--renew-move); }
+.swatch.chip-renew { background: var(--renew-bg); border-left: 3px solid var(--renew); }
+.swatch.chip-new { background: var(--tenant-new-bg); border-left: 3px solid var(--tenant-new); }
+.swatch.box-women { background: var(--women-soft); border-top: 3px solid var(--women); }
+.swatch.box-men { background: var(--men-soft); border-top: 3px solid var(--men); }
 
 .apt-empty {
   color: var(--muted);

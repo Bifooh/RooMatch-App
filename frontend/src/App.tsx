@@ -105,6 +105,7 @@ export default function App() {
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [showPrep, setShowPrep] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showColorGuide, setShowColorGuide] = useState(false)
   const [prep, setPrep] = useState<RoommatePrepPayload | null>(null)
   const [prepLoading, setPrepLoading] = useState(false)
   const [prepError, setPrepError] = useState<string | null>(null)
@@ -488,6 +489,30 @@ export default function App() {
     setMoveTarget('')
   }
 
+  /** Chip color from contracts.tenant_type + stay_preference (renewals only). */
+  function tenantChipClass(tenantType: string, stayPreference: string | null | undefined) {
+    if (tenantType === 'renewing') {
+      if (stayPreference === 'stay') return 'chip-renew-stay'
+      if (stayPreference === 'move') return 'chip-renew-move'
+      return 'chip-renew'
+    }
+    return 'chip-new'
+  }
+
+  function chipClassName(
+    selectedHere: boolean,
+    tenantType: string,
+    stayPreference: string | null | undefined,
+  ) {
+    return [
+      'chip',
+      tenantChipClass(tenantType, stayPreference),
+      selectedHere ? 'selected' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+  }
+
   return (
     <main className="app">
       <header className="hero">
@@ -606,8 +631,51 @@ export default function App() {
                   ))}
                 </select>
               </label>
+              <button
+                type="button"
+                className="legend-toggle"
+                onClick={() => setShowColorGuide((v) => !v)}
+                aria-expanded={showColorGuide}
+              >
+                {showColorGuide ? 'Hide color guide' : 'Color guide'}
+              </button>
             </div>
           </div>
+
+          {showColorGuide && (
+            <div className="color-guide" role="note">
+              <p>
+                <strong>Student chips</strong> use contract status from the seed:
+                renewing + prefer stay (warm), renewing + open to move (amber), new / flexible (blue).
+              </p>
+              <ul className="color-guide-swatches" aria-label="Student chip colors">
+                <li>
+                  <span className="swatch chip-renew-stay" /> Renewing · prefer stay
+                </li>
+                <li>
+                  <span className="swatch chip-renew-move" /> Renewing · open to move
+                </li>
+                <li>
+                  <span className="swatch chip-renew" /> Renewing · no preference
+                </li>
+                <li>
+                  <span className="swatch chip-new" /> New contract
+                </li>
+              </ul>
+              <p>
+                <strong>Apartment boxes</strong> keep a light building tint so Women’s (cool) and
+                Men’s (green) stay scannable — separate from chip colors.
+              </p>
+              <ul className="color-guide-swatches" aria-label="Apartment box colors">
+                <li>
+                  <span className="swatch box-women" /> Women’s building
+                </li>
+                <li>
+                  <span className="swatch box-men" /> Men’s building
+                </li>
+              </ul>
+            </div>
+          )}
 
           <div className="workspace-layout">
             <section aria-label="Apartment boxes">
@@ -638,9 +706,11 @@ export default function App() {
                           <li key={o.contractId}>
                             <button
                               type="button"
-                              className={
-                                selected?.contractId === o.contractId ? 'chip selected' : 'chip'
-                              }
+                              className={chipClassName(
+                                selected?.contractId === o.contractId,
+                                o.tenantType,
+                                o.stayPreference,
+                              )}
                               onClick={() =>
                                 setSelected({
                                   kind: 'assigned',
@@ -803,9 +873,11 @@ export default function App() {
                     <li key={u.contractId}>
                       <button
                         type="button"
-                        className={
-                          selected?.contractId === u.contractId ? 'chip selected' : 'chip'
-                        }
+                        className={chipClassName(
+                          selected?.contractId === u.contractId,
+                          u.tenantType,
+                          u.stayPreference,
+                        )}
                         onClick={() => selectUnassigned(u)}
                       >
                         {u.firstName} {u.lastName}

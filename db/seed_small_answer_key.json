@@ -97,61 +97,61 @@
     {
       "id": "E09",
       "kind": "renewal_stay",
-      "description": "Two renewing tenants live in 3616 and both want to stay.",
+      "description": "Two renewing tenants live in 3301 and both want to stay.",
       "tenant_codes": [
         "FAKE-00020",
         "FAKE-00021"
       ],
       "apartments": [
-        "3616"
+        "3301"
       ],
       "expected_handling": "Prefer keeping both in their current apartment."
     },
     {
       "id": "E10",
       "kind": "renewal_move",
-      "description": "Renewing tenant in 5793 wants to move.",
+      "description": "Renewing tenant in 2421 wants to move.",
       "tenant_codes": [
         "FAKE-00022"
       ],
       "apartments": [
-        "5793"
+        "2421"
       ],
       "expected_handling": "Move to a different apartment of the same plan, preferring the same floor and the same ward (wards not in the data yet); an adjacent floor is an unconfirmed fallback."
     },
     {
       "id": "E11",
       "kind": "renewal_floor_plan_changed",
-      "description": "Renewing tenant lives in 7679 (M-STD-3) and wants to stay, but contracted M-FLAT-4.",
+      "description": "Renewing tenant lives in 2401 (M-STD-3) and wants to stay, but contracted M-FLAT-4.",
       "tenant_codes": [
         "FAKE-00023"
       ],
       "apartments": [
-        "7679"
+        "2401"
       ],
       "expected_handling": "Staying is impossible under the contract; flag it and propose M-FLAT-4 apartments on the same floor (and ward, once known), then adjacent floors."
     },
     {
       "id": "E12",
       "kind": "manager_lock_required_floor",
-      "description": "Staff-confirmed required_floor=1; manager pre-placed and locked in 5793.",
+      "description": "Staff-confirmed required_floor=1; manager pre-placed and locked in 2421.",
       "tenant_codes": [
         "FAKE-00024"
       ],
       "apartments": [
-        "5793"
+        "2421"
       ],
       "expected_handling": "Preserve the lock; any move must be refused with the restriction shown."
     },
     {
       "id": "E13",
       "kind": "manager_lock_renewal",
-      "description": "Renewal stay in 5955, already locked by a manager.",
+      "description": "Renewal stay in 3223, already locked by a manager.",
       "tenant_codes": [
         "FAKE-00025"
       ],
       "apartments": [
-        "5955"
+        "3223"
       ],
       "expected_handling": "Preserve the lock."
     },
@@ -188,10 +188,10 @@
     {
       "id": "E16",
       "kind": "capacity_override",
-      "description": "Apartment 1375 has capacity_override=5 (W-STD-3 plan capacity 6).",
+      "description": "Apartment 3315 has capacity_override=5 (W-STD-3 plan capacity 6).",
       "tenant_codes": [],
       "apartments": [
-        "1375"
+        "3315"
       ],
       "expected_handling": "Validation must use the override, not the plan capacity."
     }

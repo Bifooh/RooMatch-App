@@ -7,7 +7,8 @@ Short guide for teammates. Fictional Lodge data only — not ready for real stud
 | Piece | What it is |
 |---|---|
 | **Make first plan** | Primary action: pick a term → generate an automatic working plan |
-| Apartment boxes | Colored cells of students per apartment; click to adjust |
+| Apartment boxes | Colored cells of students; Lodge-like numbers (3xxx women / 2xxx men) |
+| Student chip colors | Renewing (warm) vs new (blue); **Color guide** collapsed by default |
 | Light edits | Move, unassign, swap, lock (same validated APIs as before) |
 | Advanced tools | Roommate-name prep, history/undo, copy plan, operator name (collapsed) |
 | Backend validation | Floor plan, capacity, locks, staff restrictions |

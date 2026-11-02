@@ -52,7 +52,8 @@ public sealed record ContractState(
     uint TermId,
     uint FloorPlanId,
     string FloorPlanCode,
-    string TenantType);
+    string TenantType,
+    string? StayPreference = null);
 
 public sealed record ApartmentSnapshot(
     uint ApartmentId,

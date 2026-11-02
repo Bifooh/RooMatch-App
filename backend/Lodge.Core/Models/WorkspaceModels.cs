@@ -57,7 +57,9 @@ public sealed record AssignedTenantInfo(
     bool IsLocked,
     string? LockedBy,
     DateTime? LockedAt,
-    string? AssignmentSource);
+    string? AssignmentSource,
+    string TenantType,
+    string? StayPreference);
 
 public sealed record ApartmentWorkspaceRow(
     uint ApartmentId,
@@ -78,7 +80,8 @@ public sealed record UnassignedTenantInfo(
     string LastName,
     string FloorPlanCode,
     uint FloorPlanId,
-    string TenantType);
+    string TenantType,
+    string? StayPreference);
 
 public sealed record WorkspacePayload(
     DraftInfo Draft,

@@ -195,9 +195,9 @@ public class AssignmentValidatorTests
         state.Contracts[3] = new ContractState(3, 300, "FAKE-00003", "Willow", "Wobbleberry", 2, 1, "W-STD-2", "new");
         state.Contracts[4] = new ContractState(4, 400, "FAKE-00017", "Lark", "Jellynugget", 2, 7, "M-STD-3", "new");
 
-        state.Apartments[10] = new ApartmentSnapshot(10, "5555", 1, "W-STD-2", "Women's", 1, 4, true);
-        state.Apartments[11] = new ApartmentSnapshot(11, "5842", 1, "W-STD-2", "Women's", 2, 4, true);
-        state.Apartments[20] = new ApartmentSnapshot(20, "5793", 7, "M-STD-3", "Men's", 1, 6, true);
+        state.Apartments[10] = new ApartmentSnapshot(10, "3102", 1, "W-STD-2", "Women's", 1, 4, true);
+        state.Apartments[11] = new ApartmentSnapshot(11, "3227", 1, "W-STD-2", "Women's", 2, 4, true);
+        state.Apartments[20] = new ApartmentSnapshot(20, "2421", 7, "M-STD-3", "Men's", 1, 6, true);
 
         return state;
     }

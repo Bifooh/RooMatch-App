@@ -19,23 +19,24 @@ INSERT INTO floor_plans (floor_plan_id, code, name, variant, bedrooms, bathrooms
   (9, 'M-STH-4', 'Men''s - Standard Townhome. 4 Bedroom, 4 Bath', 'standard_townhome', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)'),
   (10, 'M-OTH-4', 'Men''s - Oversized Townhome. 4 Bedroom, 4 Bath', 'oversized_townhome', 4, 4.0, 'men', 8, FALSE, 'Real plan name; resident_capacity from Samuel/manager input 2026-10-31 (2 per bedroom by default)');
 
+-- Lodge-like numbers: 3xxx Women's, 2xxx Men's (fictional but familiar).
 INSERT INTO apartments (apartment_id, apartment_number, floor_plan_id, building, floor, capacity_override, override_reason) VALUES
-  (1, '5555', 1, 'Women''s', 1, NULL, NULL),
-  (2, '5842', 1, 'Women''s', 2, NULL, NULL),
-  (3, '8314', 1, 'Women''s', 3, NULL, NULL),
-  (4, '5955', 2, 'Women''s', 1, NULL, NULL),
-  (5, '3277', 2, 'Women''s', 2, NULL, NULL),
-  (6, '3616', 3, 'Women''s', 1, NULL, NULL),
-  (7, '1375', 3, 'Women''s', 2, 5, 'Fictional: one sleeping area unavailable this term (assumption)'),
-  (8, '7633', 4, 'Women''s', 1, NULL, NULL),
-  (9, '9102', 5, 'Women''s', 1, NULL, NULL),
-  (10, '8370', 6, 'Women''s', 1, NULL, NULL),
-  (11, '5793', 7, 'Men''s', 1, NULL, NULL),
-  (12, '7679', 7, 'Men''s', 2, NULL, NULL),
-  (13, '4560', 8, 'Men''s', 1, NULL, NULL),
-  (14, '2620', 8, 'Men''s', 2, NULL, NULL),
-  (15, '3059', 9, 'Men''s', 1, NULL, NULL),
-  (16, '7215', 10, 'Men''s', 1, NULL, NULL);
+  (1, '3102', 1, 'Women''s', 1, NULL, NULL),
+  (2, '3227', 1, 'Women''s', 2, NULL, NULL),
+  (3, '3125', 1, 'Women''s', 3, NULL, NULL),
+  (4, '3223', 2, 'Women''s', 1, NULL, NULL),
+  (5, '3122', 2, 'Women''s', 2, NULL, NULL),
+  (6, '3301', 3, 'Women''s', 1, NULL, NULL),
+  (7, '3315', 3, 'Women''s', 2, 5, 'Fictional: one sleeping area unavailable this term (assumption)'),
+  (8, '3402', 4, 'Women''s', 1, NULL, NULL),
+  (9, '3510', 5, 'Women''s', 1, NULL, NULL),
+  (10, '3601', 6, 'Women''s', 1, NULL, NULL),
+  (11, '2421', 7, 'Men''s', 1, NULL, NULL),
+  (12, '2401', 7, 'Men''s', 2, NULL, NULL),
+  (13, '2420', 8, 'Men''s', 1, NULL, NULL),
+  (14, '2120', 8, 'Men''s', 2, NULL, NULL),
+  (15, '2201', 9, 'Men''s', 1, NULL, NULL),
+  (16, '2301', 10, 'Men''s', 1, NULL, NULL);
 
 INSERT INTO tenants (tenant_id, tenant_code, first_name, last_name) VALUES
   (1, 'FAKE-00001', 'Arlo', 'Pebblecrumb'),
