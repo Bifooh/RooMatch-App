@@ -1,4 +1,13 @@
-import type { AutoMatchResult, DraftInfo, HistoryItem, MutationResult, TermInfo, Workspace } from './types'
+import type {
+  AutoMatchResult,
+  DraftInfo,
+  HistoryItem,
+  MutationResult,
+  RoommateMutationResult,
+  RoommatePrepPayload,
+  TermInfo,
+  Workspace,
+} from './types'
 
 async function parseJson<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => null)
@@ -118,6 +127,44 @@ export async function undoChange(
     return { ok: false, issues: [], error: parsed.error ?? `Undo failed (${res.status})` }
   }
   return parsed as MutationResult
+}
+
+export async function fetchRoommatePrep(termId: number): Promise<RoommatePrepPayload> {
+  return parseJson(await fetch(`/api/terms/${termId}/roommate-requests/prep`))
+}
+
+export async function resolveRoommateRequest(
+  termId: number,
+  requestId: number,
+  body: { resolvedTenantId: number; performedBy: string; note: string | null },
+): Promise<RoommateMutationResult> {
+  const res = await fetch(`/api/terms/${termId}/roommate-requests/${requestId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const parsed = await res.json().catch(() => ({ ok: false, issues: [] }))
+  if (!res.ok && !parsed.issues) {
+    return { ok: false, issues: [], error: parsed.error ?? `Resolve failed (${res.status})` }
+  }
+  return parsed as RoommateMutationResult
+}
+
+export async function markRoommateRequest(
+  termId: number,
+  requestId: number,
+  body: { status: string; exclusionReason: string; performedBy: string; note: string | null },
+): Promise<RoommateMutationResult> {
+  const res = await fetch(`/api/terms/${termId}/roommate-requests/${requestId}/mark`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const parsed = await res.json().catch(() => ({ ok: false, issues: [] }))
+  if (!res.ok && !parsed.issues) {
+    return { ok: false, issues: [], error: parsed.error ?? `Mark failed (${res.status})` }
+  }
+  return parsed as RoommateMutationResult
 }
 
 export async function runAutoMatch(
