@@ -3,9 +3,13 @@ import {
   createDraft,
   fetchDrafts,
   fetchHistory,
+  fetchRoommatePrep,
   fetchTerms,
   fetchWorkspace,
+  markRoommateRequest,
   moveTenant,
+  resolveRoommateRequest,
+  runAutoMatch,
   setLock,
   swapTenants,
   undoChange,
@@ -14,6 +18,8 @@ import type {
   DraftInfo,
   HistoryEntry,
   HistoryItem,
+  RoommatePrepItem,
+  RoommatePrepPayload,
   TermInfo,
   UnassignedTenant,
   ValidationIssue,
@@ -94,6 +100,16 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [changeReason, setChangeReason] = useState('')
+  const [matching, setMatching] = useState(false)
+  const [matchSummary, setMatchSummary] = useState<string | null>(null)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [showPrep, setShowPrep] = useState(false)
+  const [prep, setPrep] = useState<RoommatePrepPayload | null>(null)
+  const [prepLoading, setPrepLoading] = useState(false)
+  const [prepError, setPrepError] = useState<string | null>(null)
+  const [prepFilter, setPrepFilter] = useState<'all' | 'missing' | 'duplicate' | 'nearOnly' | 'exact'>('all')
+  const [prepReasons, setPrepReasons] = useState<Record<number, string>>({})
+  const [prepPicks, setPrepPicks] = useState<Record<number, number | ''>>({})
 
   useEffect(() => {
     fetchTerms()
@@ -106,18 +122,43 @@ export default function App() {
       .finally(() => setLoading(false))
   }, [])
 
+  const reloadPrep = useCallback(async (id: number) => {
+    setPrepLoading(true)
+    setPrepError(null)
+    try {
+      const payload = await fetchRoommatePrep(id)
+      setPrep(payload)
+      const picks: Record<number, number | ''> = {}
+      for (const item of payload.items) {
+        if (item.conflictKind === 'exact' && item.candidates.length === 1) {
+          picks[item.requestId] = item.candidates[0].tenantId
+        } else {
+          picks[item.requestId] = ''
+        }
+      }
+      setPrepPicks(picks)
+    } catch (e) {
+      setPrep(null)
+      setPrepError(e instanceof Error ? e.message : 'Could not load roommate prep')
+    } finally {
+      setPrepLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (termId === '') return
     setDrafts([])
     setDraftId('')
     setWorkspace(null)
+    setPrep(null)
     fetchDrafts(termId)
       .then((d) => {
         setDrafts(d)
         if (d[0]) setDraftId(d[0].draftId)
       })
       .catch((e: Error) => setBanner({ kind: 'bad', text: e.message }))
-  }, [termId])
+    void reloadPrep(termId)
+  }, [termId, reloadPrep])
 
   const reloadHistory = useCallback(async (id: number) => {
     setHistoryLoading(true)
@@ -287,6 +328,66 @@ export default function App() {
     )
   }
 
+  async function runPrepMutation(
+    action: () => Promise<{ ok: boolean; issues: ValidationIssue[]; error?: string }>,
+  ) {
+    if (termId === '' || busy || !operator.trim()) return
+    setBusy(true)
+    setBanner(null)
+    try {
+      const result = await action()
+      if (!result.ok) {
+        const detail = result.issues?.length
+          ? result.issues.map((i) => `${i.code}: ${i.message}`).join(' · ')
+          : (result.error ?? 'Rejected')
+        setBanner({ kind: 'bad', text: detail })
+      } else {
+        setBanner({ kind: 'ok', text: 'Roommate request updated.' })
+        await reloadPrep(termId)
+        if (draftId !== '') await reloadWorkspace(draftId)
+      }
+    } catch (e) {
+      setBanner({ kind: 'bad', text: e instanceof Error ? e.message : 'Request failed' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function onResolvePrep(item: RoommatePrepItem) {
+    if (termId === '') return
+    const pick = prepPicks[item.requestId]
+    if (pick === '' || pick == null) {
+      setBanner({ kind: 'bad', text: 'Pick a candidate before confirming.' })
+      return
+    }
+    void runPrepMutation(() =>
+      resolveRoommateRequest(termId, item.requestId, {
+        resolvedTenantId: pick,
+        performedBy: operator.trim(),
+        note: changeReason.trim() || null,
+      }),
+    )
+  }
+
+  function onMarkPrep(item: RoommatePrepItem, status: 'unresolved' | 'ambiguous' | 'excluded') {
+    if (termId === '') return
+    const reason =
+      (prepReasons[item.requestId] ?? '').trim() ||
+      (status === 'unresolved'
+        ? 'Person not found in this term’s tenant list.'
+        : status === 'ambiguous'
+          ? 'Multiple people could match; left for later matching to ignore or soft-match.'
+          : 'Excluded from matching.')
+    void runPrepMutation(() =>
+      markRoommateRequest(termId, item.requestId, {
+        status,
+        exclusionReason: reason,
+        performedBy: operator.trim(),
+        note: changeReason.trim() || null,
+      }),
+    )
+  }
+
   async function onCreateDraft(e: React.FormEvent) {
     e.preventDefault()
     if (termId === '' || !newDraftName.trim() || busy) return
@@ -316,10 +417,53 @@ export default function App() {
     }
   }
 
+  async function onGenerateMatch() {
+    if (termId === '' || busy || matching || !operator.trim()) return
+    setMatching(true)
+    setBusy(true)
+    setBanner(null)
+    setMatchSummary(null)
+    try {
+      const res = await runAutoMatch(termId, {
+        draftName: null,
+        copyFromDraftId: draftId === '' ? null : draftId,
+        copyLocks: true,
+        performedBy: operator.trim(),
+        notes: 'auto-match v1',
+      })
+      if (!res.ok || !res.draft) {
+        const detail = res.issues?.length
+          ? res.issues.map((i) => `${i.code}: ${i.message}`).join(' · ')
+          : (res.error ?? res.summary?.headline ?? 'Match failed')
+        setBanner({ kind: 'bad', text: detail })
+        return
+      }
+      const list = await fetchDrafts(termId)
+      setDrafts(list)
+      setDraftId(res.draft.draftId)
+      const headline =
+        res.summary?.headline ??
+        `Draft #${res.draft.draftId}: placed ${res.placedCount}, unassigned ${res.stillUnassigned}, mutual ${res.mutualPairsPlaced}, one-way ${res.oneWayJoinsPlaced ?? 0}.`
+      setMatchSummary(headline)
+      setBanner({ kind: 'ok', text: headline })
+    } catch (err) {
+      setBanner({ kind: 'bad', text: err instanceof Error ? err.message : 'Match failed' })
+    } finally {
+      setMatching(false)
+      setBusy(false)
+    }
+  }
+
   const errorIssues = workspace?.issues.filter((i) => i.severity === 'error') ?? []
   const warnIssues = workspace?.issues.filter((i) => i.severity === 'warning') ?? []
   const infoIssues = workspace?.issues.filter((i) => i.severity === 'info') ?? []
   const editable = workspace?.draft.status === 'draft'
+
+  const prepItems = useMemo(() => {
+    if (!prep) return []
+    if (prepFilter === 'all') return prep.items
+    return prep.items.filter((i) => i.conflictKind === prepFilter)
+  }, [prep, prepFilter])
 
   function selectUnassigned(u: UnassignedTenant) {
     setSelected({ kind: 'unassigned', contractId: u.contractId })
@@ -409,7 +553,161 @@ export default function App() {
         >
           Refresh
         </button>
+        <button
+          type="button"
+          onClick={() => setShowPrep((v) => !v)}
+          disabled={termId === '' || busy}
+        >
+          {showPrep ? 'Hide roommate prep' : 'Show roommate prep'}
+        </button>
+        <button
+          type="button"
+          onClick={() => termId !== '' && reloadPrep(termId)}
+          disabled={termId === '' || busy || prepLoading || !showPrep}
+        >
+          Refresh roommate prep
+        </button>
+        <button
+          type="button"
+          onClick={() => void onGenerateMatch()}
+          disabled={termId === '' || busy || matching || !operator.trim()}
+          aria-busy={matching}
+          title="Creates a new draft (copies the selected draft if any) and greedily places unassigned contracts."
+        >
+          {matching ? 'Generating draft…' : 'Generate draft (v1 match)'}
+        </button>
       </section>
+
+      {matchSummary && (
+        <p className="banner info" role="status">
+          Last match: {matchSummary}
+        </p>
+      )}
+
+      {termId !== '' && showPrep && (
+        <section className="prep-panel" aria-label="Roommate request prep">
+          <div className="issues-bar">
+            <strong>Roommate request prep</strong>
+            <span>
+              {prepLoading
+                ? 'Loading…'
+                : prep
+                  ? `${prep.summary.needsAttention} need attention · ${prep.summary.missing} missing · ${prep.summary.duplicates} duplicates · ${prep.summary.nearOnly} near · ${prep.summary.exactReady} exact`
+                  : '—'}
+            </span>
+            <label className="prep-filter">
+              Filter
+              <select
+                value={prepFilter}
+                onChange={(e) => setPrepFilter(e.target.value as typeof prepFilter)}
+                disabled={prepLoading || !prep}
+              >
+                <option value="all">All open</option>
+                <option value="missing">Missing name</option>
+                <option value="duplicate">Duplicates</option>
+                <option value="nearOnly">Near spelling only</option>
+                <option value="exact">Exact ready</option>
+              </select>
+            </label>
+          </div>
+          <p className="prep-lede">
+            Fix what you can before auto-matching. Original wording is never overwritten. Near matches are
+            hints only — never auto-resolved. Matching itself is not run here.
+          </p>
+          {prepError && (
+            <p className="banner bad" role="alert">
+              Prep: {prepError}
+            </p>
+          )}
+          {!prepLoading && !prepError && prep && prepItems.length === 0 && (
+            <p className="empty">No roommate requests need attention for this filter.</p>
+          )}
+          {prepItems.length > 0 && (
+            <ul className="prep-list">
+              {prepItems.map((item) => (
+                <li key={item.requestId} className={`prep-item kind-${item.conflictKind}`}>
+                  <div className="prep-head">
+                    <div>
+                      <strong>{item.requesterName}</strong>{' '}
+                      <code>{item.requesterTenantCode}</code> · {item.requesterFloorPlanCode}
+                      <br />
+                      Asked for: <em>“{item.rawText}”</em>
+                      <span className="muted"> · #{item.requestId} · {item.status} · {item.conflictKind}</span>
+                    </div>
+                    <p className="prep-hint">{item.suggestedAction}</p>
+                  </div>
+                  {item.candidates.length > 0 ? (
+                    <label className="prep-pick">
+                      Candidate
+                      <select
+                        value={prepPicks[item.requestId] ?? ''}
+                        onChange={(e) =>
+                          setPrepPicks((prev) => ({
+                            ...prev,
+                            [item.requestId]: e.target.value ? Number(e.target.value) : '',
+                          }))
+                        }
+                        disabled={busy}
+                      >
+                        <option value="">Select…</option>
+                        {item.candidates.map((c) => (
+                          <option key={c.tenantId} value={c.tenantId}>
+                            {c.firstName} {c.lastName} ({c.tenantCode}) · {c.floorPlanCode} · {c.matchKind}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="muted">No candidates — do not invent a person.</p>
+                  )}
+                  <label className="prep-reason">
+                    Reason (for unresolved / ambiguous / excluded)
+                    <input
+                      value={prepReasons[item.requestId] ?? ''}
+                      onChange={(e) =>
+                        setPrepReasons((prev) => ({ ...prev, [item.requestId]: e.target.value }))
+                      }
+                      placeholder="Optional unless marking; a default is used if empty"
+                      maxLength={500}
+                      disabled={busy}
+                    />
+                  </label>
+                  <div className="prep-actions">
+                    <button
+                      type="button"
+                      disabled={busy || !operator.trim() || item.candidates.length === 0}
+                      onClick={() => onResolvePrep(item)}
+                    >
+                      Confirm pick
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !operator.trim()}
+                      onClick={() => onMarkPrep(item, 'unresolved')}
+                    >
+                      Mark unresolved
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !operator.trim()}
+                      onClick={() => onMarkPrep(item, 'ambiguous')}
+                    >
+                      Mark ambiguous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !operator.trim()}
+                      onClick={() => onMarkPrep(item, 'excluded')}
+                    >
+                      Mark excluded
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {showCreate && (
         <form className="create-draft" onSubmit={onCreateDraft}>
@@ -539,31 +837,34 @@ export default function App() {
                   ? 'Loading…'
                   : `${history.length} recent · ${history.filter((h) => h.isUndoable).length} undoable`}
               </span>
-              <button
-                type="button"
-                disabled={draftId === '' || busy || historyLoading}
-                onClick={() => draftId !== '' && reloadHistory(draftId)}
-              >
-                Refresh history
+              <button type="button" onClick={() => setHistoryExpanded((v) => !v)}>
+                {historyExpanded ? 'Hide history' : 'Show history'}
               </button>
               <button
                 type="button"
-                disabled={!editable || busy || !lastUndoable || !operator.trim()}
+                disabled={draftId === '' || busy || historyLoading || !historyExpanded}
+                onClick={() => draftId !== '' && reloadHistory(draftId)}
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                disabled={!editable || busy || !lastUndoable || !operator.trim() || !historyExpanded}
                 onClick={() => onUndo(null)}
                 title={lastUndoable ? `Undo history #${lastUndoable.historyId}` : 'Nothing to undo'}
               >
                 Undo last
               </button>
             </div>
-            {historyError && (
+            {historyExpanded && historyError && (
               <p className="banner bad" role="alert">
                 History: {historyError}
               </p>
             )}
-            {!historyLoading && !historyError && history.length === 0 && (
+            {historyExpanded && !historyLoading && !historyError && history.length === 0 && (
               <p className="empty">No recorded changes for this draft yet.</p>
             )}
-            {history.length > 0 && (
+            {historyExpanded && history.length > 0 && (
               <div className="history-table-wrap">
                 <table>
                   <thead>

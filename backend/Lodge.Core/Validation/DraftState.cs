@@ -89,7 +89,8 @@ public sealed record RoommateRequestState(
     string RequesterName,
     string RawText,
     string Status,
-    string? ExclusionReason);
+    string? ExclusionReason,
+    uint? ResolvedTenantId = null);
 
 public sealed record PreferenceState(
     uint ContractId,

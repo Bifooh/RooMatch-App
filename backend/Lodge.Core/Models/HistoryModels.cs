@@ -4,7 +4,9 @@ public sealed record MoveRequest(
     uint ContractId,
     uint? ApartmentId,
     string? PerformedBy = null,
-    string? Reason = null);
+    string? Reason = null,
+    /// <summary>assignments.source; defaults to manual. Matcher uses generated.</summary>
+    string? Source = null);
 
 public sealed record SwapRequest(
     uint ContractIdA,

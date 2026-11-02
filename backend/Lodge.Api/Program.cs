@@ -12,6 +12,8 @@ var connectionString = builder.Configuration.GetConnectionString("Lodge")
     ?? throw new InvalidOperationException("ConnectionStrings:Lodge is not configured. Copy appsettings.Local.example.json to appsettings.Local.json.");
 builder.Services.AddMySqlDataSource(connectionString);
 builder.Services.AddSingleton<AssignmentService>();
+builder.Services.AddSingleton<AutoMatchService>();
+builder.Services.AddSingleton<RoommateRequestPrepService>();
 
 var app = builder.Build();
 
@@ -127,6 +129,70 @@ app.MapPost("/api/drafts/{draftId:int}/undo", async (uint draftId, UndoRequest b
         return Results.Json(new { ok = false, error = "Undo failed due to a server or database error." }, statusCode: 500);
     }
 });
+
+app.MapPost("/api/terms/{termId:int}/match",
+    async (uint termId, AutoMatchRequest? body, AutoMatchService svc, CancellationToken ct) =>
+    {
+        try
+        {
+            var result = await svc.RunAsync(termId, body, ct);
+            if (result.Ok) return Results.Ok(result);
+            var code = result.Issues.FirstOrDefault()?.Code ?? "";
+            var status = code is "BODY_REQUIRED" or "OPERATOR_REQUIRED" or "DRAFT_NAME_TOO_LONG" or "TERM_NOT_FOUND"
+                or "DRAFT_NAME_REQUIRED"
+                ? 400
+                : 409;
+            return Results.Json(result, statusCode: status);
+        }
+        catch (Exception)
+        {
+            return Results.Json(new
+            {
+                ok = false,
+                error = "Auto-match failed due to a server or database error. Check MySQL and that migration 001 is applied.",
+                summary = new { headline = "Auto-match failed unexpectedly." },
+            }, statusCode: 500);
+        }
+    });
+
+app.MapGet("/api/terms/{termId:int}/roommate-requests/prep",
+    async (uint termId, RoommateRequestPrepService svc, CancellationToken ct) =>
+    {
+        var payload = await svc.ListPrepAsync(termId, ct);
+        return payload is null
+            ? Results.NotFound(new { error = "Term not found." })
+            : Results.Ok(payload);
+    });
+
+app.MapPost("/api/terms/{termId:int}/roommate-requests/{requestId:int}/resolve",
+    async (uint termId, uint requestId, ResolveRoommateRequest body, RoommateRequestPrepService svc, CancellationToken ct) =>
+    {
+        try
+        {
+            var result = await svc.ResolveAsync(termId, requestId, body, ct);
+            return result.Ok ? Results.Ok(result) : Results.Json(result, statusCode: 409);
+        }
+        catch (Exception)
+        {
+            return Results.Json(new { ok = false, error = "Resolve failed due to a server or database error." },
+                statusCode: 500);
+        }
+    });
+
+app.MapPost("/api/terms/{termId:int}/roommate-requests/{requestId:int}/mark",
+    async (uint termId, uint requestId, MarkRoommateRequest body, RoommateRequestPrepService svc, CancellationToken ct) =>
+    {
+        try
+        {
+            var result = await svc.MarkAsync(termId, requestId, body, ct);
+            return result.Ok ? Results.Ok(result) : Results.Json(result, statusCode: 409);
+        }
+        catch (Exception)
+        {
+            return Results.Json(new { ok = false, error = "Mark failed due to a server or database error." },
+                statusCode: 500);
+        }
+    });
 
 app.Run();
 

@@ -1,6 +1,6 @@
 # Manual assignment workspace (implemented)
 
-**Status:** manual workspace + history/undo API and UI are implemented. Automatic matching is still deferred.
+**Status:** manual workspace, history/undo, roommate prep, and auto-match v1 are implemented. Full weighted matching is still deferred.
 
 ## What staff can do
 
@@ -15,6 +15,7 @@
 9. Review a compact validation panel (details on demand), plus original roommate-request wording.
 10. Edits persist in MySQL across refresh.
 11. Review recent change history for the selected draft; undo last or undo a specific row (optional reason).
+12. Prep roommate-request conflicts for the selected **term** (resolve duplicates, mark missing/ambiguous/excluded) before matching — see `docs/roommate-request-prep.md`.
 
 ## Validation (backend authoritative)
 
@@ -53,7 +54,7 @@ Moves and swaps validate the **resulting** state (both apartments for a swap). R
 - Ward mapping (`apartments.ward_id` not in schema).
 - Accessibility need / adapted apartments.
 - Staff-confirmed allergy hard rule (no `allergy_confirmed_by` fields; legacy preference booleans are warnings only).
-- Roommate-request name resolution (seeds stay `pending`; original `raw_text` shown unchanged).
+- Automatic roommate-request matching (prep UI can resolve/mark; seeds start `pending`; `raw_text` never overwritten).
 
 This workspace never claims full validation against unimplemented proposal rules.
 
@@ -70,8 +71,12 @@ This workspace never claims full validation against unimplemented proposal rules
 | POST | `/api/drafts/{draftId}/lock` | Lock / unlock |
 | GET | `/api/drafts/{draftId}/history` | Recent change history (`?limit=50`) |
 | POST | `/api/drafts/{draftId}/undo` | Undo last undoable change, or `{ historyId }` |
+| GET | `/api/terms/{termId}/roommate-requests/prep` | Roommate conflict/prep list for the term |
+| POST | `/api/terms/{termId}/roommate-requests/{requestId}/resolve` | Confirm resolved tenant |
+| POST | `/api/terms/{termId}/roommate-requests/{requestId}/mark` | Mark unresolved / ambiguous / excluded |
+| POST | `/api/terms/{termId}/match` | V1 auto-match → new draft (see `docs/auto-match-v1.md`) |
 
-Move/swap accept optional `performedBy` + `reason` (reason never required). Lock uses `lockedBy` as the operator identity.
+Move/swap accept optional `performedBy` + `reason` (reason never required). Lock uses `lockedBy` as the operator identity. Roommate prep uses the same fictional operator.
 
 ## History & undo
 

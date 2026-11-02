@@ -119,3 +119,76 @@ export type HistoryItem = {
   isUndoable: boolean
   createdAt: string
 }
+
+export type AutoMatchSummary = {
+  placed: number
+  stillUnassigned: number
+  mutualPairsPlaced: number
+  oneWayJoinsPlaced: number
+  skipped: number
+  headline: string
+}
+
+export type AutoMatchResult = {
+  ok: boolean
+  draft?: DraftInfo | null
+  placedCount: number
+  stillUnassigned: number
+  mutualPairsPlaced: number
+  oneWayJoinsPlaced?: number
+  summary?: AutoMatchSummary
+  placements: unknown[]
+  skips: { contractId: number; tenantCode: string; reason: string }[]
+  notes: string[]
+  issues: ValidationIssue[]
+  error?: string
+}
+
+export type RoommateCandidate = {
+  tenantId: number
+  tenantCode: string
+  firstName: string
+  lastName: string
+  contractId: number
+  floorPlanCode: string
+  matchKind: string
+}
+
+export type RoommatePrepItem = {
+  requestId: number
+  contractId: number
+  requesterTenantId: number
+  requesterTenantCode: string
+  requesterName: string
+  requesterFloorPlanCode: string
+  rawText: string
+  status: string
+  exclusionReason: string | null
+  conflictKind: string
+  suggestedAction: string
+  candidates: RoommateCandidate[]
+}
+
+export type RoommatePrepPayload = {
+  termId: number
+  termCode: string
+  summary: {
+    pending: number
+    ambiguous: number
+    unresolved: number
+    excluded: number
+    needsAttention: number
+    exactReady: number
+    duplicates: number
+    missing: number
+    nearOnly: number
+  }
+  items: RoommatePrepItem[]
+}
+
+export type RoommateMutationResult = {
+  ok: boolean
+  issues: ValidationIssue[]
+  error?: string
+  item?: RoommatePrepItem | null
+}
