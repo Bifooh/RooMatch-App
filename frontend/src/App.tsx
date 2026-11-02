@@ -104,6 +104,7 @@ export default function App() {
   const [matchSummary, setMatchSummary] = useState<string | null>(null)
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [showPrep, setShowPrep] = useState(false)
+  const [showTools, setShowTools] = useState(false)
   const [prep, setPrep] = useState<RoommatePrepPayload | null>(null)
   const [prepLoading, setPrepLoading] = useState(false)
   const [prepError, setPrepError] = useState<string | null>(null)
@@ -443,7 +444,7 @@ export default function App() {
       setDraftId(res.draft.draftId)
       const headline =
         res.summary?.headline ??
-        `Draft #${res.draft.draftId}: placed ${res.placedCount}, unassigned ${res.stillUnassigned}, mutual ${res.mutualPairsPlaced}, one-way ${res.oneWayJoinsPlaced ?? 0}.`
+        `Plan ready: ${res.placedCount} placed, ${res.stillUnassigned} still need a spot (mutual ${res.mutualPairsPlaced}, one-way ${res.oneWayJoinsPlaced ?? 0}).`
       setMatchSummary(headline)
       setBanner({ kind: 'ok', text: headline })
     } catch (err) {
@@ -456,7 +457,6 @@ export default function App() {
 
   const errorIssues = workspace?.issues.filter((i) => i.severity === 'error') ?? []
   const warnIssues = workspace?.issues.filter((i) => i.severity === 'warning') ?? []
-  const infoIssues = workspace?.issues.filter((i) => i.severity === 'info') ?? []
   const editable = workspace?.draft.status === 'draft'
 
   const prepItems = useMemo(() => {
@@ -464,6 +464,22 @@ export default function App() {
     if (prepFilter === 'all') return prep.items
     return prep.items.filter((i) => i.conflictKind === prepFilter)
   }, [prep, prepFilter])
+
+
+  function aptFillClass(occ: number, cap: number) {
+    if (cap <= 0) return 'fill-mid'
+    const r = occ / cap
+    if (r >= 1) return 'fill-full'
+    if (r >= 0.5) return 'fill-mid'
+    return 'fill-low'
+  }
+
+  function buildingClass(building: string) {
+    const b = building.toLowerCase()
+    if (b.includes('women')) return 'building-women'
+    if (b.includes('men')) return 'building-men'
+    return ''
+  }
 
   function selectUnassigned(u: UnassignedTenant) {
     setSelected({ kind: 'unassigned', contractId: u.contractId })
@@ -473,673 +489,705 @@ export default function App() {
 
   return (
     <main className="app">
-      <header className="top">
-        <div>
-          <h1>Roomatch assignment workspace</h1>
-          <p className="lede">
-            Manual apartment assignment for fictional Lodge data. Backend validation is authoritative.
-            Local only — not ready for confidential student data.
-          </p>
-        </div>
-        <div className="operator-block">
-          <label className="operator">
-            Operator identity
-            <input
-              value={operator}
-              onChange={(e) => setOperator(e.target.value)}
-              placeholder="Fictional staff name"
-              aria-label="Fictional operator identity for locks and history"
-            />
+      <header className="hero">
+        <h1 className="hero-brand">Roomatch</h1>
+        <p className="hero-lede">
+          Pick a term, make a first plan automatically, then tweak apartments as boxes of students.
+          Fictional Lodge data only — not for real student records.
+        </p>
+        <div className="hero-actions">
+          <label>
+            Term
+            <select
+              value={termId}
+              onChange={(e) => setTermId(e.target.value ? Number(e.target.value) : '')}
+              disabled={busy}
+            >
+              <option value="">Select term…</option>
+              {terms.map((t) => (
+                <option key={t.termId} value={t.termId}>
+                  {t.code} — {t.name}
+                </option>
+              ))}
+            </select>
           </label>
-          <label className="operator">
-            Change reason (optional)
-            <input
-              value={changeReason}
-              onChange={(e) => setChangeReason(e.target.value)}
-              placeholder="Not required"
-              maxLength={255}
-              aria-label="Optional reason for edits and undos"
-            />
-          </label>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => void onGenerateMatch()}
+            disabled={termId === '' || busy || matching || !operator.trim()}
+            aria-busy={matching}
+          >
+            {matching ? 'Making plan…' : 'Make first plan'}
+          </button>
         </div>
+        <p className="hero-hint">
+          Places people by floor plan and resolved roommate pairs. You can move anyone afterward.
+        </p>
       </header>
 
-      {loading && <p role="status">Loading terms…</p>}
-      {loadError && <p className="banner bad" role="alert">Could not load API: {loadError}</p>}
+      {loading && <p role="status">Loading…</p>}
+      {loadError && (
+        <p className="banner bad" role="alert">
+          Could not reach the API: {loadError}
+        </p>
+      )}
       {banner && (
         <p className={`banner ${banner.kind}`} role="status">
           {banner.text}
         </p>
       )}
-
-      <section className="controls" aria-label="Term and draft">
-        <label>
-          Term
-          <select
-            value={termId}
-            onChange={(e) => setTermId(e.target.value ? Number(e.target.value) : '')}
-            disabled={busy}
-          >
-            <option value="">Select term…</option>
-            {terms.map((t) => (
-              <option key={t.termId} value={t.termId}>
-                {t.code} — {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Draft
-          <select
-            value={draftId}
-            onChange={(e) => setDraftId(e.target.value ? Number(e.target.value) : '')}
-            disabled={busy || termId === ''}
-          >
-            <option value="">Select draft…</option>
-            {drafts.map((d) => (
-              <option key={d.draftId} value={d.draftId}>
-                #{d.draftId} {d.name} ({d.status})
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="button" onClick={() => setShowCreate((v) => !v)} disabled={termId === '' || busy}>
-          {showCreate ? 'Cancel new draft' : 'New working draft'}
-        </button>
-        <button
-          type="button"
-          onClick={() => draftId !== '' && reloadWorkspace(draftId)}
-          disabled={draftId === '' || busy}
-        >
-          Refresh
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowPrep((v) => !v)}
-          disabled={termId === '' || busy}
-        >
-          {showPrep ? 'Hide roommate prep' : 'Show roommate prep'}
-        </button>
-        <button
-          type="button"
-          onClick={() => termId !== '' && reloadPrep(termId)}
-          disabled={termId === '' || busy || prepLoading || !showPrep}
-        >
-          Refresh roommate prep
-        </button>
-        <button
-          type="button"
-          onClick={() => void onGenerateMatch()}
-          disabled={termId === '' || busy || matching || !operator.trim()}
-          aria-busy={matching}
-          title="Creates a new draft (copies the selected draft if any) and greedily places unassigned contracts."
-        >
-          {matching ? 'Generating draft…' : 'Generate draft (v1 match)'}
-        </button>
-      </section>
-
       {matchSummary && (
         <p className="banner info" role="status">
-          Last match: {matchSummary}
+          Last generate: {matchSummary}
         </p>
       )}
 
-      {termId !== '' && showPrep && (
-        <section className="prep-panel" aria-label="Roommate request prep">
-          <div className="issues-bar">
-            <strong>Roommate request prep</strong>
-            <span>
-              {prepLoading
-                ? 'Loading…'
-                : prep
-                  ? `${prep.summary.needsAttention} need attention · ${prep.summary.missing} missing · ${prep.summary.duplicates} duplicates · ${prep.summary.nearOnly} near · ${prep.summary.exactReady} exact`
-                  : '—'}
-            </span>
-            <label className="prep-filter">
-              Filter
-              <select
-                value={prepFilter}
-                onChange={(e) => setPrepFilter(e.target.value as typeof prepFilter)}
-                disabled={prepLoading || !prep}
-              >
-                <option value="all">All open</option>
-                <option value="missing">Missing name</option>
-                <option value="duplicate">Duplicates</option>
-                <option value="nearOnly">Near spelling only</option>
-                <option value="exact">Exact ready</option>
-              </select>
-            </label>
-          </div>
-          <p className="prep-lede">
-            Fix what you can before auto-matching. Original wording is never overwritten. Near matches are
-            hints only — never auto-resolved. Matching itself is not run here.
-          </p>
-          {prepError && (
-            <p className="banner bad" role="alert">
-              Prep: {prepError}
-            </p>
-          )}
-          {!prepLoading && !prepError && prep && prepItems.length === 0 && (
-            <p className="empty">No roommate requests need attention for this filter.</p>
-          )}
-          {prepItems.length > 0 && (
-            <ul className="prep-list">
-              {prepItems.map((item) => (
-                <li key={item.requestId} className={`prep-item kind-${item.conflictKind}`}>
-                  <div className="prep-head">
-                    <div>
-                      <strong>{item.requesterName}</strong>{' '}
-                      <code>{item.requesterTenantCode}</code> · {item.requesterFloorPlanCode}
-                      <br />
-                      Asked for: <em>“{item.rawText}”</em>
-                      <span className="muted"> · #{item.requestId} · {item.status} · {item.conflictKind}</span>
-                    </div>
-                    <p className="prep-hint">{item.suggestedAction}</p>
-                  </div>
-                  {item.candidates.length > 0 ? (
-                    <label className="prep-pick">
-                      Candidate
-                      <select
-                        value={prepPicks[item.requestId] ?? ''}
-                        onChange={(e) =>
-                          setPrepPicks((prev) => ({
-                            ...prev,
-                            [item.requestId]: e.target.value ? Number(e.target.value) : '',
-                          }))
-                        }
-                        disabled={busy}
-                      >
-                        <option value="">Select…</option>
-                        {item.candidates.map((c) => (
-                          <option key={c.tenantId} value={c.tenantId}>
-                            {c.firstName} {c.lastName} ({c.tenantCode}) · {c.floorPlanCode} · {c.matchKind}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : (
-                    <p className="muted">No candidates — do not invent a person.</p>
-                  )}
-                  <label className="prep-reason">
-                    Reason (for unresolved / ambiguous / excluded)
-                    <input
-                      value={prepReasons[item.requestId] ?? ''}
-                      onChange={(e) =>
-                        setPrepReasons((prev) => ({ ...prev, [item.requestId]: e.target.value }))
-                      }
-                      placeholder="Optional unless marking; a default is used if empty"
-                      maxLength={500}
-                      disabled={busy}
-                    />
-                  </label>
-                  <div className="prep-actions">
-                    <button
-                      type="button"
-                      disabled={busy || !operator.trim() || item.candidates.length === 0}
-                      onClick={() => onResolvePrep(item)}
-                    >
-                      Confirm pick
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || !operator.trim()}
-                      onClick={() => onMarkPrep(item, 'unresolved')}
-                    >
-                      Mark unresolved
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || !operator.trim()}
-                      onClick={() => onMarkPrep(item, 'ambiguous')}
-                    >
-                      Mark ambiguous
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || !operator.trim()}
-                      onClick={() => onMarkPrep(item, 'excluded')}
-                    >
-                      Mark excluded
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {showCreate && (
-        <form className="create-draft" onSubmit={onCreateDraft}>
-          <h2>Create working draft</h2>
-          <p>Copies create a new draft without changing the original. Unassigned tenants still come from term contracts.</p>
+      {termId !== '' && (
+        <section className="plan-strip" aria-label="Working plan">
           <label>
-            Name
-            <input
-              value={newDraftName}
-              onChange={(e) => setNewDraftName(e.target.value)}
-              required
-              maxLength={100}
-            />
-          </label>
-          <label>
-            Copy assignments from
+            Working plan
             <select
-              value={copyFrom}
-              onChange={(e) => setCopyFrom(e.target.value ? Number(e.target.value) : '')}
+              value={draftId}
+              onChange={(e) => setDraftId(e.target.value ? Number(e.target.value) : '')}
+              disabled={busy}
             >
-              <option value="">Empty draft</option>
+              <option value="">None yet — make a first plan</option>
               {drafts.map((d) => (
                 <option key={d.draftId} value={d.draftId}>
-                  #{d.draftId} {d.name}
+                  {d.name} {d.status !== 'draft' ? `(${d.status})` : ''}
                 </option>
               ))}
             </select>
           </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={copyLocks}
-              onChange={(e) => setCopyLocks(e.target.checked)}
-              disabled={copyFrom === ''}
-            />
-            Copy locks
-          </label>
-          <button type="submit" disabled={busy || !newDraftName.trim()}>
-            Create
+          <button
+            type="button"
+            onClick={() => draftId !== '' && reloadWorkspace(draftId)}
+            disabled={draftId === '' || busy}
+          >
+            Refresh
           </button>
-        </form>
+          {workspace && (
+            <p className="plan-meta">
+              {workspace.apartments.reduce((n, a) => n + a.occupants.length, 0)} placed ·{' '}
+              {workspace.unassigned.length} unassigned
+              {!editable ? ' · read-only' : ''}
+            </p>
+          )}
+        </section>
       )}
 
       {workspace && (
         <>
-          <section className="meta" aria-label="Draft summary">
-            <p>
-              <strong>{workspace.draft.name}</strong> · {workspace.term.code} · status{' '}
-              <code>{workspace.draft.status}</code>
-              {!editable && ' · read-only (final/archived)'}
-            </p>
-            <p>
-              Assigned {workspace.apartments.reduce((n, a) => n + a.occupants.length, 0)} · Unassigned{' '}
-              {workspace.unassigned.length} · Active apartments {workspace.apartments.length}
-            </p>
-          </section>
-
-          <section className="issues" aria-label="Validation issues">
-            <div className="issues-bar">
-              <strong>Validation</strong>
-              <span>
-                {errorIssues.length} errors · {warnIssues.length} warnings · {infoIssues.length} info
-              </span>
-              <button type="button" onClick={() => setIssueExpanded((v) => !v)}>
-                {issueExpanded ? 'Hide details' : 'Show details'}
-              </button>
-              <button type="button" onClick={() => setShowLimitations((v) => !v)}>
-                Limitations
-              </button>
-              <button type="button" onClick={() => setShowRequests((v) => !v)}>
-                Roommate requests ({workspace.roommateRequests.length})
-              </button>
+          <div className="board-head">
+            <h2>Apartments</h2>
+            <div className="board-filters">
+              <label>
+                Find
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Name or apartment"
+                />
+              </label>
+              <label>
+                Floor plan
+                <select value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
+                  <option value="">All</option>
+                  {plans.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-            {showLimitations && (
-              <ul className="limitations">
-                {workspace.validationLimitations.map((l) => (
-                  <li key={l}>{l}</li>
-                ))}
-              </ul>
-            )}
-            {issueExpanded && (
-              <ul className="issue-list">
-                {[...errorIssues, ...warnIssues, ...infoIssues].map((i, idx) => (
-                  <li key={`${i.code}-${idx}`} className={i.severity}>
-                    <code>{i.code}</code> {i.message}
-                  </li>
-                ))}
-                {workspace.issues.length === 0 && <li>No issues in current draft state.</li>}
-              </ul>
-            )}
-            {showRequests && (
-              <div className="requests">
-                <h3>Roommate requests (original wording preserved)</h3>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Requester</th>
-                      <th>Wording</th>
-                      <th>Status</th>
-                      <th>Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workspace.roommateRequests.map((r) => (
-                      <tr key={r.requestId}>
-                        <td>
-                          {r.requesterName}
-                          <br />
-                          <code>{r.tenantCode}</code>
-                        </td>
-                        <td>{r.rawText}</td>
-                        <td>{r.status}</td>
-                        <td>{r.exclusionReason ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+          </div>
 
-          <section className="history-panel" aria-label="Change history">
-            <div className="issues-bar">
-              <strong>Change history</strong>
-              <span>
-                {historyLoading
-                  ? 'Loading…'
-                  : `${history.length} recent · ${history.filter((h) => h.isUndoable).length} undoable`}
-              </span>
-              <button type="button" onClick={() => setHistoryExpanded((v) => !v)}>
-                {historyExpanded ? 'Hide history' : 'Show history'}
-              </button>
-              <button
-                type="button"
-                disabled={draftId === '' || busy || historyLoading || !historyExpanded}
-                onClick={() => draftId !== '' && reloadHistory(draftId)}
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                disabled={!editable || busy || !lastUndoable || !operator.trim() || !historyExpanded}
-                onClick={() => onUndo(null)}
-                title={lastUndoable ? `Undo history #${lastUndoable.historyId}` : 'Nothing to undo'}
-              >
-                Undo last
-              </button>
-            </div>
-            {historyExpanded && historyError && (
-              <p className="banner bad" role="alert">
-                History: {historyError}
-              </p>
-            )}
-            {historyExpanded && !historyLoading && !historyError && history.length === 0 && (
-              <p className="empty">No recorded changes for this draft yet.</p>
-            )}
-            {historyExpanded && history.length > 0 && (
-              <div className="history-table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>When</th>
-                      <th>Type</th>
-                      <th>By</th>
-                      <th>Summary</th>
-                      <th>Reason</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((h) => (
-                      <tr key={h.historyId} className={h.isUndoable ? undefined : 'history-undone'}>
-                        <td>
-                          <code>#{h.historyId}</code>
-                          {h.undoesHistoryId != null && (
-                            <>
-                              <br />
-                              <span className="muted">undoes #{h.undoesHistoryId}</span>
-                            </>
-                          )}
-                          {h.undoneByHistoryId != null && (
-                            <>
-                              <br />
-                              <span className="muted">undone by #{h.undoneByHistoryId}</span>
-                            </>
-                          )}
-                        </td>
-                        <td>{formatWhen(h.createdAt)}</td>
-                        <td>
-                          <code>{h.changeType}</code>
-                        </td>
-                        <td>{h.performedBy}</td>
-                        <td>{summarizeChange(h, nameByCode)}</td>
-                        <td>{h.reason ?? '—'}</td>
-                        <td>
-                          {h.isUndoable ? (
+          <div className="workspace-layout">
+            <section aria-label="Apartment boxes">
+              {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
+              <ul className="apt-board">
+                {filteredApartments.map((a) => {
+                  const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
+                  const bldg = buildingClass(a.building)
+                  return (
+                    <li
+                      key={a.apartmentId}
+                      className={`apt-box ${bldg} ${fill}`}
+                    >
+                      <div className="apt-box-head">
+                        <strong>{a.apartmentNumber}</strong>
+                        <span className="apt-box-meta">
+                          {a.occupants.length}/{a.effectiveCapacity}
+                        </span>
+                      </div>
+                      <div className="apt-box-meta">
+                        {a.floorPlanCode} · fl {a.floor}
+                      </div>
+                      <ul className="occ-chips">
+                        {a.occupants.length === 0 && (
+                          <li className="apt-empty">Empty</li>
+                        )}
+                        {a.occupants.map((o) => (
+                          <li key={o.contractId}>
                             <button
                               type="button"
-                              disabled={!editable || busy || !operator.trim()}
-                              onClick={() => onUndo(h.historyId)}
+                              className={
+                                selected?.contractId === o.contractId ? 'chip selected' : 'chip'
+                              }
+                              onClick={() =>
+                                setSelected({
+                                  kind: 'assigned',
+                                  contractId: o.contractId,
+                                  apartmentId: a.apartmentId,
+                                })
+                              }
                             >
-                              Undo
+                              {o.firstName} {o.lastName}
+                              {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
                             </button>
-                          ) : (
-                            <span className="muted">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section className="filters" aria-label="Search and filters">
-            <label>
-              Search
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Name, tenant code, apartment, plan"
-              />
-            </label>
-            <label>
-              Floor plan
-              <select value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
-                <option value="">All plans</option>
-                {plans.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </section>
-
-          <section className="action-panel" aria-label="Selected tenant actions">
-            <h2>Selection</h2>
-            {!selected && <p>Select a tenant from an apartment or the unassigned list.</p>}
-            {selected && (
-              <>
-                <p>
-                  Selected: <strong>{selectedLabel}</strong>
-                </p>
-                <div className="action-row">
-                  <label>
-                    Move to apartment
-                    <select
-                      value={moveTarget}
-                      onChange={(e) => setMoveTarget(e.target.value ? Number(e.target.value) : '')}
-                      disabled={!editable || busy}
-                    >
-                      <option value="">Choose…</option>
-                      {compatibleApartments.map((a) => (
-                        <option key={a.apartmentId} value={a.apartmentId}>
-                          {a.apartmentNumber} · {a.floorPlanCode} · fl {a.floor} ·{' '}
-                          {a.occupants.length}/{a.effectiveCapacity}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    disabled={!editable || busy || moveTarget === '' || !operator.trim()}
-                    onClick={() =>
-                      runMutation(() =>
-                        moveTenant(
-                          draftId as number,
-                          selected.contractId,
-                          moveTarget as number,
-                          operator.trim(),
-                          changeReason.trim() || null,
-                        ),
-                      )
-                    }
-                  >
-                    Move
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!editable || busy || selected.kind !== 'assigned' || !operator.trim()}
-                    onClick={() =>
-                      runMutation(() =>
-                        moveTenant(
-                          draftId as number,
-                          selected.contractId,
-                          null,
-                          operator.trim(),
-                          changeReason.trim() || null,
-                        ),
-                      )
-                    }
-                  >
-                    Unassign
-                  </button>
-                </div>
-                {selected.kind === 'assigned' && (
-                  <div className="action-row">
-                    <label>
-                      Swap with
-                      <select
-                        value={swapTarget}
-                        onChange={(e) => setSwapTarget(e.target.value ? Number(e.target.value) : '')}
-                        disabled={!editable || busy}
-                      >
-                        <option value="">Choose assigned tenant…</option>
-                        {assignedOptions.map((o) => (
-                          <option key={o.contractId} value={o.contractId}>
-                            {o.label}
-                          </option>
+                          </li>
                         ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      disabled={!editable || busy || swapTarget === '' || !operator.trim()}
-                      onClick={() =>
-                        runMutation(() =>
-                          swapTenants(
-                            draftId as number,
-                            selected.contractId,
-                            swapTarget as number,
-                            operator.trim(),
-                            changeReason.trim() || null,
-                          ),
-                        )
-                      }
-                    >
-                      Swap
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!editable || busy || !operator.trim()}
-                      onClick={() => {
-                        const apt = workspace.apartments.find(
-                          (a) => a.apartmentId === selected.apartmentId,
-                        )
-                        const occ = apt?.occupants.find((o) => o.contractId === selected.contractId)
-                        const locked = !occ?.isLocked
-                        return runMutation(() =>
-                          setLock(
-                            draftId as number,
-                            selected.contractId,
-                            locked,
-                            operator.trim(),
-                            changeReason.trim() || null,
-                          ),
-                        )
-                      }}
-                    >
-                      Toggle lock
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+                      </ul>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
 
-          <div className="workspace-grid">
-            <section aria-label="Apartments">
-              <h2>Apartments</h2>
-              {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
-              <ul className="apt-list">
-                {filteredApartments.map((a) => (
-                  <li key={a.apartmentId} className="apt-card">
-                    <div className="apt-head">
-                      <strong>{a.apartmentNumber}</strong>
-                      <span>
-                        {a.floorPlanCode} · {a.building} fl {a.floor}
-                      </span>
-                      <span>
-                        {a.occupants.length}/{a.effectiveCapacity}
-                      </span>
+            <aside className="side-col">
+              <section className="panel" aria-label="Adjust selection">
+                <h2>Adjust</h2>
+                {!selected && (
+                  <p className="muted">Click a student in a box, or someone waiting below.</p>
+                )}
+                {selected && (
+                  <>
+                    <p>
+                      <strong>{selectedLabel}</strong>
+                    </p>
+                    <div className="action-row">
+                      <label>
+                        Move to
+                        <select
+                          value={moveTarget}
+                          onChange={(e) =>
+                            setMoveTarget(e.target.value ? Number(e.target.value) : '')
+                          }
+                          disabled={!editable || busy}
+                        >
+                          <option value="">Choose…</option>
+                          {compatibleApartments.map((a) => (
+                            <option key={a.apartmentId} value={a.apartmentId}>
+                              {a.apartmentNumber} · {a.occupants.length}/{a.effectiveCapacity}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!editable || busy || moveTarget === '' || !operator.trim()}
+                        onClick={() =>
+                          runMutation(() =>
+                            moveTenant(
+                              draftId as number,
+                              selected.contractId,
+                              moveTarget as number,
+                              operator.trim(),
+                              changeReason.trim() || null,
+                            ),
+                          )
+                        }
+                      >
+                        Move
+                      </button>
+                      <button
+                        type="button"
+                        disabled={
+                          !editable || busy || selected.kind !== 'assigned' || !operator.trim()
+                        }
+                        onClick={() =>
+                          runMutation(() =>
+                            moveTenant(
+                              draftId as number,
+                              selected.contractId,
+                              null,
+                              operator.trim(),
+                              changeReason.trim() || null,
+                            ),
+                          )
+                        }
+                      >
+                        Unassign
+                      </button>
                     </div>
-                    <ul className="occ-list">
-                      {a.occupants.length === 0 && <li className="empty">Empty</li>}
-                      {a.occupants.map((o) => (
-                        <li key={o.contractId}>
-                          <button
-                            type="button"
-                            className={
-                              selected?.contractId === o.contractId ? 'tenant selected' : 'tenant'
+                    {selected.kind === 'assigned' && (
+                      <div className="action-row">
+                        <label>
+                          Swap with
+                          <select
+                            value={swapTarget}
+                            onChange={(e) =>
+                              setSwapTarget(e.target.value ? Number(e.target.value) : '')
                             }
-                            onClick={() =>
-                              setSelected({
-                                kind: 'assigned',
-                                contractId: o.contractId,
-                                apartmentId: a.apartmentId,
-                              })
-                            }
+                            disabled={!editable || busy}
                           >
-                            {displayName(o.firstName, o.lastName, o.tenantCode)}
-                            {o.isLocked ? ` [locked by ${o.lockedBy}]` : ''}
-                          </button>
+                            <option value="">Choose…</option>
+                            {assignedOptions.map((o) => (
+                              <option key={o.contractId} value={o.contractId}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          disabled={!editable || busy || swapTarget === '' || !operator.trim()}
+                          onClick={() =>
+                            runMutation(() =>
+                              swapTenants(
+                                draftId as number,
+                                selected.contractId,
+                                swapTarget as number,
+                                operator.trim(),
+                                changeReason.trim() || null,
+                              ),
+                            )
+                          }
+                        >
+                          Swap
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!editable || busy || !operator.trim()}
+                          onClick={() => {
+                            const apt = workspace.apartments.find(
+                              (a) => a.apartmentId === selected.apartmentId,
+                            )
+                            const occ = apt?.occupants.find(
+                              (o) => o.contractId === selected.contractId,
+                            )
+                            const locked = !occ?.isLocked
+                            return runMutation(() =>
+                              setLock(
+                                draftId as number,
+                                selected.contractId,
+                                locked,
+                                operator.trim(),
+                                changeReason.trim() || null,
+                              ),
+                            )
+                          }}
+                        >
+                          Toggle lock
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+
+              <section className="panel" aria-label="Waiting list">
+                <h2>Waiting ({filteredUnassigned.length})</h2>
+                {filteredUnassigned.length === 0 && (
+                  <p className="empty">Everyone on this plan has a spot (or filters hide them).</p>
+                )}
+                <ul className="unassigned-list">
+                  {filteredUnassigned.map((u) => (
+                    <li key={u.contractId}>
+                      <button
+                        type="button"
+                        className={
+                          selected?.contractId === u.contractId ? 'chip selected' : 'chip'
+                        }
+                        onClick={() => selectUnassigned(u)}
+                      >
+                        {u.firstName} {u.lastName}
+                        <span className="muted"> · {u.floorPlanCode}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              {(errorIssues.length > 0 || warnIssues.length > 0) && (
+                <section className="panel" aria-label="Alerts">
+                  <h3>Needs attention</h3>
+                  <p className="muted">
+                    {errorIssues.length} blocks · {warnIssues.length} warnings
+                  </p>
+                  <button type="button" onClick={() => setIssueExpanded((v) => !v)}>
+                    {issueExpanded ? 'Hide details' : 'Show details'}
+                  </button>
+                  {issueExpanded && (
+                    <ul className="issue-list">
+                      {[...errorIssues, ...warnIssues].map((i, idx) => (
+                        <li key={`${i.code}-${idx}`} className={i.severity}>
+                          <code>{i.code}</code> {i.message}
                         </li>
                       ))}
                     </ul>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section aria-label="Unassigned tenants">
-              <h2>Unassigned ({filteredUnassigned.length})</h2>
-              {filteredUnassigned.length === 0 && <p className="empty">None match filters.</p>}
-              <ul className="unassigned-list">
-                {filteredUnassigned.map((u) => (
-                  <li key={u.contractId}>
-                    <button
-                      type="button"
-                      className={
-                        selected?.contractId === u.contractId ? 'tenant selected' : 'tenant'
-                      }
-                      onClick={() => selectUnassigned(u)}
-                    >
-                      {displayName(u.firstName, u.lastName, u.tenantCode)}
-                      <span className="plan">{u.floorPlanCode}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
+                  )}
+                </section>
+              )}
+            </aside>
           </div>
         </>
       )}
 
-      {!workspace && !loading && !loadError && draftId === '' && (
-        <p className="empty">Select a term and draft to begin.</p>
+      {!workspace && !loading && !loadError && termId !== '' && (
+        <p className="empty">Make a first plan for this term, or pick an existing working plan above.</p>
       )}
-      {busy && <p className="busy" role="status">Working…</p>}
+
+      <section className="tools">
+        <button
+          type="button"
+          className="tools-toggle"
+          onClick={() => setShowTools((v) => !v)}
+        >
+          {showTools ? 'Hide advanced tools' : 'Advanced tools (roommate names, history, copy…)'}
+        </button>
+        {showTools && (
+          <div className="tools-body">
+            <div className="operator-block panel">
+              <label className="operator">
+                Your name (for locks &amp; undo)
+                <input
+                  value={operator}
+                  onChange={(e) => setOperator(e.target.value)}
+                  placeholder="Fictional staff name"
+                />
+              </label>
+              <label className="operator">
+                Note (optional)
+                <input
+                  value={changeReason}
+                  onChange={(e) => setChangeReason(e.target.value)}
+                  placeholder="Not required"
+                  maxLength={255}
+                />
+              </label>
+            </div>
+
+            <div className="panel">
+              <div className="issues-bar">
+                <strong>Copy / empty plan</strong>
+                <button type="button" onClick={() => setShowCreate((v) => !v)} disabled={termId === '' || busy}>
+                  {showCreate ? 'Cancel' : 'New empty or copied plan'}
+                </button>
+              </div>
+              {showCreate && (
+                <form className="create-draft" onSubmit={onCreateDraft}>
+                  <label>
+                    Name
+                    <input
+                      value={newDraftName}
+                      onChange={(e) => setNewDraftName(e.target.value)}
+                      required
+                      maxLength={100}
+                    />
+                  </label>
+                  <label>
+                    Copy placements from
+                    <select
+                      value={copyFrom}
+                      onChange={(e) => setCopyFrom(e.target.value ? Number(e.target.value) : '')}
+                    >
+                      <option value="">Empty</option>
+                      {drafts.map((d) => (
+                        <option key={d.draftId} value={d.draftId}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={copyLocks}
+                      onChange={(e) => setCopyLocks(e.target.checked)}
+                      disabled={copyFrom === ''}
+                    />
+                    Copy locks
+                  </label>
+                  <button type="submit" disabled={busy || !newDraftName.trim()}>
+                    Create
+                  </button>
+                </form>
+              )}
+            </div>
+
+            <div className="panel">
+              <div className="issues-bar">
+                <strong>Roommate names</strong>
+                <span className="muted">
+                  {prepLoading
+                    ? 'Loading…'
+                    : prep
+                      ? `${prep.summary.needsAttention} need a look`
+                      : '—'}
+                </span>
+                <button type="button" onClick={() => setShowPrep((v) => !v)} disabled={termId === ''}>
+                  {showPrep ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => termId !== '' && reloadPrep(termId)}
+                  disabled={termId === '' || busy || prepLoading || !showPrep}
+                >
+                  Refresh
+                </button>
+              </div>
+              {showPrep && termId !== '' && (
+                <>
+                  <p className="prep-lede">
+                    Fix names before generating when you can. Original wording stays unchanged.
+                  </p>
+                  <label className="prep-filter">
+                    Filter
+                    <select
+                      value={prepFilter}
+                      onChange={(e) => setPrepFilter(e.target.value as typeof prepFilter)}
+                      disabled={prepLoading || !prep}
+                    >
+                      <option value="all">All open</option>
+                      <option value="missing">Missing name</option>
+                      <option value="duplicate">Duplicates</option>
+                      <option value="nearOnly">Near spelling only</option>
+                      <option value="exact">Exact ready</option>
+                    </select>
+                  </label>
+                  {prepError && (
+                    <p className="banner bad" role="alert">
+                      {prepError}
+                    </p>
+                  )}
+                  {!prepLoading && !prepError && prep && prepItems.length === 0 && (
+                    <p className="empty">Nothing needs attention for this filter.</p>
+                  )}
+                  {prepItems.length > 0 && (
+                    <ul className="prep-list">
+                      {prepItems.map((item) => (
+                        <li key={item.requestId} className={`prep-item kind-${item.conflictKind}`}>
+                          <div className="prep-head">
+                            <div>
+                              <strong>{item.requesterName}</strong>{' '}
+                              <span className="muted">{item.requesterFloorPlanCode}</span>
+                              <br />
+                              Asked for: <em>“{item.rawText}”</em>
+                            </div>
+                            <p className="prep-hint">{item.suggestedAction}</p>
+                          </div>
+                          {item.candidates.length > 0 ? (
+                            <label className="prep-pick">
+                              Candidate
+                              <select
+                                value={prepPicks[item.requestId] ?? ''}
+                                onChange={(e) =>
+                                  setPrepPicks((prev) => ({
+                                    ...prev,
+                                    [item.requestId]: e.target.value ? Number(e.target.value) : '',
+                                  }))
+                                }
+                                disabled={busy}
+                              >
+                                <option value="">Select…</option>
+                                {item.candidates.map((c) => (
+                                  <option key={c.tenantId} value={c.tenantId}>
+                                    {c.firstName} {c.lastName} · {c.matchKind}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : (
+                            <p className="muted">No candidates — do not invent a person.</p>
+                          )}
+                          <label className="prep-reason">
+                            Reason (for mark actions)
+                            <input
+                              value={prepReasons[item.requestId] ?? ''}
+                              onChange={(e) =>
+                                setPrepReasons((prev) => ({
+                                  ...prev,
+                                  [item.requestId]: e.target.value,
+                                }))
+                              }
+                              maxLength={500}
+                              disabled={busy}
+                            />
+                          </label>
+                          <div className="prep-actions">
+                            <button
+                              type="button"
+                              disabled={busy || !operator.trim() || item.candidates.length === 0}
+                              onClick={() => onResolvePrep(item)}
+                            >
+                              Confirm pick
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy || !operator.trim()}
+                              onClick={() => onMarkPrep(item, 'unresolved')}
+                            >
+                              Unresolved
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy || !operator.trim()}
+                              onClick={() => onMarkPrep(item, 'ambiguous')}
+                            >
+                              Ambiguous
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy || !operator.trim()}
+                              onClick={() => onMarkPrep(item, 'excluded')}
+                            >
+                              Excluded
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="panel">
+              <div className="issues-bar">
+                <strong>Change history</strong>
+                <span className="muted">
+                  {historyLoading
+                    ? 'Loading…'
+                    : `${history.length} recent · ${history.filter((h) => h.isUndoable).length} undoable`}
+                </span>
+                <button type="button" onClick={() => setHistoryExpanded((v) => !v)}>
+                  {historyExpanded ? 'Hide' : 'Show'}
+                </button>
+                <button
+                  type="button"
+                  disabled={draftId === '' || busy || historyLoading || !historyExpanded}
+                  onClick={() => draftId !== '' && reloadHistory(draftId)}
+                >
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    !editable || busy || !lastUndoable || !operator.trim() || !historyExpanded
+                  }
+                  onClick={() => onUndo(null)}
+                >
+                  Undo last
+                </button>
+              </div>
+              {historyExpanded && historyError && (
+                <p className="banner bad" role="alert">
+                  {historyError}
+                </p>
+              )}
+              {historyExpanded && !historyLoading && history.length === 0 && (
+                <p className="empty">No recorded changes yet.</p>
+              )}
+              {historyExpanded && history.length > 0 && (
+                <div className="history-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>When</th>
+                        <th>Type</th>
+                        <th>By</th>
+                        <th>Summary</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((h) => (
+                        <tr key={h.historyId} className={h.isUndoable ? undefined : 'history-undone'}>
+                          <td>
+                            <code>#{h.historyId}</code>
+                          </td>
+                          <td>{formatWhen(h.createdAt)}</td>
+                          <td>
+                            <code>{h.changeType}</code>
+                          </td>
+                          <td>{h.performedBy}</td>
+                          <td>{summarizeChange(h, nameByCode)}</td>
+                          <td>
+                            {h.isUndoable ? (
+                              <button
+                                type="button"
+                                disabled={!editable || busy || !operator.trim()}
+                                onClick={() => onUndo(h.historyId)}
+                              >
+                                Undo
+                              </button>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {workspace && (
+              <div className="panel">
+                <div className="issues-bar">
+                  <strong>Validation notes</strong>
+                  <button type="button" onClick={() => setShowLimitations((v) => !v)}>
+                    Limitations
+                  </button>
+                  <button type="button" onClick={() => setShowRequests((v) => !v)}>
+                    All roommate wording ({workspace.roommateRequests.length})
+                  </button>
+                </div>
+                {showLimitations && (
+                  <ul className="limitations">
+                    {workspace.validationLimitations.map((l) => (
+                      <li key={l}>{l}</li>
+                    ))}
+                  </ul>
+                )}
+                {showRequests && (
+                  <div className="requests">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Requester</th>
+                          <th>Wording</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workspace.roommateRequests.map((r) => (
+                          <tr key={r.requestId}>
+                            <td>{r.requesterName}</td>
+                            <td>{r.rawText}</td>
+                            <td>{r.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {busy && (
+        <p className="busy" role="status">
+          Working…
+        </p>
+      )}
     </main>
   )
 }
