@@ -536,12 +536,20 @@ body {
 .board-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem 0.75rem;
-  align-items: end;
+  gap: 0.5rem 0.65rem;
+  align-items: center;
 }
 
 .board-filters .filter-find {
   min-width: 9rem;
+  gap: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.board-filters .filter-find input {
+  color: var(--ink);
+  font-size: 0.9rem;
 }
 
 .filter-chip-bar {
@@ -549,8 +557,6 @@ body {
   flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
-  align-self: end;
-  padding-bottom: 0.1rem;
 }
 
 .filter-chip {
