@@ -140,14 +140,14 @@ function labelStayPreference(stay: string | null | undefined) {
 function statusTagMeta(tenantType: string, stayPreference: string | null | undefined) {
   if (tenantType === 'renewing') {
     if (stayPreference === 'stay') {
-      return { className: 'status-tag chip-renew-stay', title: 'Renewing · prefer stay' }
+      return { className: 'status-tag chip-renew-stay', title: 'Renewing' }
     }
     if (stayPreference === 'move') {
-      return { className: 'status-tag chip-renew-move', title: 'Renewing · open to move' }
+      return { className: 'status-tag chip-renew-move', title: 'Open to move' }
     }
-    return { className: 'status-tag chip-renew', title: 'Renewing · no preference' }
+    return { className: 'status-tag chip-renew', title: 'Renewing' }
   }
-  return { className: 'status-tag chip-new', title: 'New contract' }
+  return { className: 'status-tag chip-new', title: 'New' }
 }
 
 export default function App() {
@@ -990,21 +990,21 @@ export default function App() {
           {showColorGuide && (
             <div className="color-guide" role="note">
               <p>
-                <strong>Student chips</strong> use contract status from the seed:
-                renewing + prefer stay (warm), renewing + open to move (amber), new / flexible (blue).
+                <strong>Student chips</strong> use contract status: Renewing (warm), Open to move
+                (amber), New (blue).
               </p>
               <ul className="color-guide-swatches" aria-label="Student chip colors">
                 <li>
-                  <span className="swatch chip-renew-stay" /> Renewing · prefer stay
+                  <span className="swatch chip-renew-stay" /> Renewing
                 </li>
                 <li>
-                  <span className="swatch chip-renew-move" /> Renewing · open to move
+                  <span className="swatch chip-renew-move" /> Open to move
                 </li>
                 <li>
-                  <span className="swatch chip-renew" /> Renewing · no preference
+                  <span className="swatch chip-renew" /> Renewing
                 </li>
                 <li>
-                  <span className="swatch chip-new" /> New contract
+                  <span className="swatch chip-new" /> New
                 </li>
               </ul>
               <p>
@@ -1023,102 +1023,7 @@ export default function App() {
           )}
 
           <div className="workspace-layout">
-            <section aria-label="Apartment boxes">
-              {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
-              <ul className="apt-board">
-                {filteredApartments.map((a) => {
-                  const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
-                  const bldg = buildingClass(a.building)
-                  const dragging = dragContractId != null
-                  const valid =
-                    dragging && dragContractId != null
-                      ? apartmentIsDropValid(a.apartmentId, dragContractId)
-                      : false
-                  const samePlan =
-                    dragging && dragPlan != null && a.floorPlanId === dragPlan.floorPlanId
-                  const dropClass = dragging
-                    ? valid
-                      ? 'drop-valid'
-                      : samePlan
-                        ? 'drop-full'
-                        : 'drop-invalid'
-                    : ''
-                  return (
-                    <li
-                      key={a.apartmentId}
-                      className={`apt-box ${bldg} ${fill} ${dropClass} ${dropHover === a.apartmentId ? 'drop-hover' : ''}`}
-                      onDragOver={(e) => {
-                        const draggingId = dragContractIdRef.current ?? dragContractId
-                        if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
-                        e.preventDefault()
-                        const id = draggingId
-                        const ok = id != null && apartmentIsDropValid(a.apartmentId, id)
-                        e.dataTransfer.dropEffect = ok ? 'move' : 'none'
-                        setDropHover(a.apartmentId)
-                      }}
-                      onDragLeave={() => {
-                        setDropHover((h) => (h === a.apartmentId ? null : h))
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        dropOnApartment(a.apartmentId, e)
-                      }}
-                    >
-                      <div className="apt-box-head">
-                        <strong>{a.apartmentNumber}</strong>
-                        <span className="apt-box-meta">
-                          {a.occupants.length}/{a.effectiveCapacity}
-                        </span>
-                      </div>
-                      <div className="apt-box-meta">
-                        {a.floorPlanCode} · fl {a.floor}
-                      </div>
-                      <ul className="occ-chips">
-                        {a.occupants.length === 0 && (
-                          <li className="apt-empty">Empty</li>
-                        )}
-                        {a.occupants.map((o) => (
-                          <li key={o.contractId} className="chip-row">
-                            <button
-                              type="button"
-                              draggable={editable && !busy}
-                              className={chipClassName(
-                                selected?.contractId === o.contractId,
-                                o.tenantType,
-                                o.stayPreference,
-                              )}
-                              onDragStart={(e) => {
-                                dragMovedRef.current = true
-                                selectAssigned(o.contractId, a.apartmentId)
-                                beginDrag(o.contractId, e)
-                              }}
-                              onDragEnd={endDrag}
-                              onClick={() =>
-                                onNameClick(() => selectAssigned(o.contractId, a.apartmentId))
-                              }
-                            >
-                              {o.firstName} {o.lastName}
-                              {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
-                            </button>
-                            <button
-                              type="button"
-                              className="chip-info"
-                              aria-label={`Details for ${o.firstName} ${o.lastName}`}
-                              title="Details"
-                              onClick={() => openDetails(o.contractId)}
-                            >
-                              i
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-
-            <aside className="side-col">
+            <aside className="side-col side-left" aria-label="Adjust column">
               <section className="panel" aria-label="Adjust selection">
                 <h2>Adjust</h2>
                 {!selected && (
@@ -1287,6 +1192,125 @@ export default function App() {
                 )}
               </section>
 
+              {(errorIssues.length > 0 || warnIssues.length > 0) && (
+                <section className="panel" aria-label="Alerts">
+                  <h3>Needs attention</h3>
+                  <p className="muted">
+                    {errorIssues.length} blocks · {warnIssues.length} warnings
+                  </p>
+                  <button type="button" onClick={() => setIssueExpanded((v) => !v)}>
+                    {issueExpanded ? 'Hide details' : 'Show details'}
+                  </button>
+                  {issueExpanded && (
+                    <ul className="issue-list">
+                      {[...errorIssues, ...warnIssues].map((i, idx) => (
+                        <li key={`${i.code}-${idx}`} className={i.severity}>
+                          <code>{i.code}</code> {i.message}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+            </aside>
+
+            <section aria-label="Apartment boxes">
+              {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
+              <ul className="apt-board">
+                {filteredApartments.map((a) => {
+                  const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
+                  const bldg = buildingClass(a.building)
+                  const dragging = dragContractId != null
+                  const valid =
+                    dragging && dragContractId != null
+                      ? apartmentIsDropValid(a.apartmentId, dragContractId)
+                      : false
+                  const samePlan =
+                    dragging && dragPlan != null && a.floorPlanId === dragPlan.floorPlanId
+                  const dropClass = dragging
+                    ? valid
+                      ? 'drop-valid'
+                      : samePlan
+                        ? 'drop-full'
+                        : 'drop-invalid'
+                    : ''
+                  return (
+                    <li
+                      key={a.apartmentId}
+                      className={`apt-box ${bldg} ${fill} ${dropClass} ${dropHover === a.apartmentId ? 'drop-hover' : ''}`}
+                      onDragOver={(e) => {
+                        const draggingId = dragContractIdRef.current ?? dragContractId
+                        if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
+                        e.preventDefault()
+                        const id = draggingId
+                        const ok = id != null && apartmentIsDropValid(a.apartmentId, id)
+                        e.dataTransfer.dropEffect = ok ? 'move' : 'none'
+                        setDropHover(a.apartmentId)
+                      }}
+                      onDragLeave={() => {
+                        setDropHover((h) => (h === a.apartmentId ? null : h))
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        dropOnApartment(a.apartmentId, e)
+                      }}
+                    >
+                      <div className="apt-box-head">
+                        <strong>{a.apartmentNumber}</strong>
+                        <span className="apt-box-meta">
+                          {a.occupants.length}/{a.effectiveCapacity}
+                        </span>
+                      </div>
+                      <div className="apt-box-meta">
+                        {a.floorPlanCode} · fl {a.floor}
+                      </div>
+                      <ul className="occ-chips">
+                        {a.occupants.length === 0 && (
+                          <li className="apt-empty">Empty</li>
+                        )}
+                        {a.occupants.map((o) => (
+                          <li key={o.contractId} className="chip-row">
+                            <button
+                              type="button"
+                              draggable={editable && !busy}
+                              className={chipClassName(
+                                selected?.contractId === o.contractId,
+                                o.tenantType,
+                                o.stayPreference,
+                              )}
+                              onDragStart={(e) => {
+                                dragMovedRef.current = true
+                                selectAssigned(o.contractId, a.apartmentId)
+                                beginDrag(o.contractId, e)
+                              }}
+                              onDragEnd={endDrag}
+                              onClick={() =>
+                                onNameClick(() => selectAssigned(o.contractId, a.apartmentId))
+                              }
+                            >
+                              {o.firstName} {o.lastName}
+                              {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
+                            </button>
+                            <button
+                              type="button"
+                              className="chip-info"
+                              aria-label={`Details for ${o.firstName} ${o.lastName}`}
+                              title="Details"
+                              onClick={() => openDetails(o.contractId)}
+                            >
+                              i
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+
+
+            <aside className="side-col side-right" aria-label="Waiting column">
               <section
                 className={`panel waiting-drop ${dragContractId != null ? 'drop-unassign' : ''} ${dropHover === 'waiting' ? 'drop-hover' : ''}`}
                 aria-label="Waiting list"
@@ -1354,26 +1378,6 @@ export default function App() {
                 </ul>
               </section>
 
-              {(errorIssues.length > 0 || warnIssues.length > 0) && (
-                <section className="panel" aria-label="Alerts">
-                  <h3>Needs attention</h3>
-                  <p className="muted">
-                    {errorIssues.length} blocks · {warnIssues.length} warnings
-                  </p>
-                  <button type="button" onClick={() => setIssueExpanded((v) => !v)}>
-                    {issueExpanded ? 'Hide details' : 'Show details'}
-                  </button>
-                  {issueExpanded && (
-                    <ul className="issue-list">
-                      {[...errorIssues, ...warnIssues].map((i, idx) => (
-                        <li key={`${i.code}-${idx}`} className={i.severity}>
-                          <code>{i.code}</code> {i.message}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              )}
             </aside>
           </div>
         </>
@@ -1794,17 +1798,9 @@ export default function App() {
                 <h2 id="student-details-title">
                   {studentDetails.firstName} {studentDetails.lastName}
                 </h2>
-                <span
-                  className={
-                    statusTagMeta(studentDetails.tenantType, studentDetails.stayPreference)
-                      .className
-                  }
-                >
-                  {
-                    statusTagMeta(studentDetails.tenantType, studentDetails.stayPreference)
-                      .title
-                  }
-                </span>
+                {detailsStatusTag && (
+                  <span className={detailsStatusTag.className}>{detailsStatusTag.title}</span>
+                )}
               </div>
               <button type="button" className="modal-close" onClick={closeDetails} autoFocus>
                 Close
