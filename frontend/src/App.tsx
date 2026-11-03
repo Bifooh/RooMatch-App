@@ -35,6 +35,26 @@ type Selected =
   | { kind: 'unassigned'; contractId: number }
   | null
 
+/** Concise Lodge plan reference (matches db/seed_small floor_plans). */
+const FLOOR_PLAN_CODES: {
+  code: string
+  category: 'Women' | 'Men'
+  shorthand: string
+  name: string
+  capacity: number
+}[] = [
+  { code: 'W-STD-2', category: 'Women', shorthand: 'Std 2bd', name: 'Standard 2 Bedroom, 2 Bath', capacity: 4 },
+  { code: 'W-OVR-2', category: 'Women', shorthand: 'Ovr 2bd', name: 'Oversized 2 Bedroom, 2 Bath', capacity: 4 },
+  { code: 'W-STD-3', category: 'Women', shorthand: 'Std 3bd', name: 'Standard 3 Bedroom, 3 Bath', capacity: 6 },
+  { code: 'W-FLAT-4', category: 'Women', shorthand: 'Flat 4bd', name: 'Flat 4 Bedroom, 4 Bath', capacity: 8 },
+  { code: 'W-STH-4', category: 'Women', shorthand: 'Std TH 4bd', name: 'Standard Townhome 4 Bedroom, 4 Bath', capacity: 8 },
+  { code: 'W-OTH-4', category: 'Women', shorthand: 'Ovr TH 4bd', name: 'Oversized Townhome 4 Bedroom, 4 Bath', capacity: 8 },
+  { code: 'M-STD-3', category: 'Men', shorthand: 'Std 3bd', name: 'Standard 3 Bedroom, 3 Bath', capacity: 6 },
+  { code: 'M-FLAT-4', category: 'Men', shorthand: 'Flat 4bd', name: 'Flat 4 Bedroom, 4 Bath', capacity: 8 },
+  { code: 'M-STH-4', category: 'Men', shorthand: 'Std TH 4bd', name: 'Standard Townhome 4 Bedroom, 4 Bath', capacity: 8 },
+  { code: 'M-OTH-4', category: 'Men', shorthand: 'Ovr TH 4bd', name: 'Oversized Townhome 4 Bedroom, 4 Bath', capacity: 8 },
+]
+
 function displayName(first: string, last: string, code: string) {
   return `${first} ${last} (${code})`
 }
@@ -142,6 +162,7 @@ export default function App() {
   const [showPrep, setShowPrep] = useState(false)
   const [showTools, setShowTools] = useState(false)
   const [showColorGuide, setShowColorGuide] = useState(false)
+  const [showFloorPlanCodes, setShowFloorPlanCodes] = useState(false)
   const [boardTab, setBoardTab] = useState<BoardTab>('women')
   const [detailsContractId, setDetailsContractId] = useState<number | null>(null)
   const [prep, setPrep] = useState<RoommatePrepPayload | null>(null)
@@ -621,17 +642,24 @@ export default function App() {
     setDetailsContractId(null)
   }
 
+  function closeFloorPlanCodes() {
+    setShowFloorPlanCodes(false)
+  }
+
   useEffect(() => {
-    if (detailsContractId == null) return
+    if (detailsContractId == null && !showFloorPlanCodes) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setDetailsContractId(null)
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      if (showFloorPlanCodes) {
+        setShowFloorPlanCodes(false)
+        return
       }
+      setDetailsContractId(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [detailsContractId])
+  }, [detailsContractId, showFloorPlanCodes])
 
   useEffect(() => {
     if (planFilter && !plans.includes(planFilter)) setPlanFilter('')
@@ -808,6 +836,14 @@ export default function App() {
                 aria-expanded={showColorGuide}
               >
                 {showColorGuide ? 'Hide color guide' : 'Color guide'}
+              </button>
+              <button
+                type="button"
+                className="legend-toggle"
+                onClick={() => setShowFloorPlanCodes(true)}
+                aria-haspopup="dialog"
+              >
+                Floor plan codes
               </button>
             </div>
           </div>
@@ -1439,6 +1475,49 @@ export default function App() {
         <p className="busy" role="status">
           Working…
         </p>
+      )}
+
+      {showFloorPlanCodes && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeFloorPlanCodes()
+          }}
+        >
+          <div
+            className="modal modal-compact"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="floor-plan-codes-title"
+          >
+            <div className="modal-head">
+              <h2 id="floor-plan-codes-title">Floor plan codes</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={closeFloorPlanCodes}
+                autoFocus
+              >
+                Close
+              </button>
+            </div>
+            <p className="muted modal-lede">
+              W = Women’s · M = Men’s. Cap = residents per apartment (2 per bedroom by default).
+            </p>
+            <ul className="plan-code-list">
+              {FLOOR_PLAN_CODES.map((p) => (
+                <li key={p.code}>
+                  <code>{p.code}</code>
+                  <span>
+                    {p.category} · {p.shorthand} — {p.name} · cap {p.capacity}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="muted modal-hint">Close with Escape or Close.</p>
+          </div>
+        </div>
       )}
 
       {studentDetails && (

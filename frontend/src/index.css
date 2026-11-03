@@ -643,3 +643,33 @@ h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
 @media (max-width: 520px) {
   .detail-grid { grid-template-columns: 1fr; }
 }
+
+.modal-compact {
+  width: min(28rem, 100%);
+  max-height: min(85vh, 36rem);
+}
+
+.modal-lede {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.plan-code-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.plan-code-list li {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.plan-code-list code {
+  font-weight: 600;
+}
