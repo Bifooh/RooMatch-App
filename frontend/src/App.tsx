@@ -37,6 +37,7 @@ import type {
 
 type BoardTab = 'women' | 'men'
 type BoardLens = 'boxes' | 'list'
+type AppScreen = 'board' | 'prep' | 'history'
 
 type Selected =
   | { kind: 'assigned'; contractId: number; apartmentId: number }
@@ -182,9 +183,7 @@ export default function App() {
   const [changeReason, setChangeReason] = useState('')
   const [matching, setMatching] = useState(false)
   const [matchSummary, setMatchSummary] = useState<string | null>(null)
-  const [historyExpanded, setHistoryExpanded] = useState(false)
-  const [showPrep, setShowPrep] = useState(false)
-  const [showTools, setShowTools] = useState(false)
+  const [appScreen, setAppScreen] = useState<AppScreen>('board')
   const [showColorGuide, setShowColorGuide] = useState(false)
   const [showFloorPlanCodes, setShowFloorPlanCodes] = useState(false)
   const [boardTab, setBoardTab] = useState<BoardTab>('women')
@@ -924,6 +923,19 @@ export default function App() {
     setShowFloorPlanCodes(false)
   }
 
+  function openScreen(screen: AppScreen) {
+    setAppScreen(screen)
+    setDetailsContractId(null)
+    setShowFloorPlanCodes(false)
+    setShowColorGuide(false)
+    if (screen === 'prep' && termId !== '') void reloadPrep(termId)
+    if (screen === 'history' && draftId !== '') void reloadHistory(draftId)
+  }
+
+  function backToBoard() {
+    setAppScreen('board')
+  }
+
   useEffect(() => {
     if (detailsContractId == null && !showFloorPlanCodes) return
     function onKey(e: KeyboardEvent) {
@@ -1020,7 +1032,7 @@ export default function App() {
         </p>
       )}
 
-      {termId !== '' && (
+      {appScreen === 'board' && termId !== '' && (
         <section className="plan-strip" aria-label="Working plan">
           <label>
             Working plan
@@ -1044,6 +1056,14 @@ export default function App() {
           >
             Refresh
           </button>
+          <label className="plan-strip-operator">
+            Your name
+            <input
+              value={operator}
+              onChange={(e) => setOperator(e.target.value)}
+              placeholder="For locks & undo"
+            />
+          </label>
           {workspace && (
             <p className="plan-meta">
               {workspace.apartments.reduce((n, a) => n + a.occupants.length, 0)} placed ·{' '}
@@ -1054,7 +1074,7 @@ export default function App() {
         </section>
       )}
 
-      {workspace && (
+      {appScreen === 'board' && workspace && (
         <>
           <div className="board-head">
             <div className="board-title-row">
@@ -1163,7 +1183,46 @@ export default function App() {
                   </>
                 )}
               </div>
-              <div className="board-quiet" role="group" aria-label="References">
+              <div className="board-quiet" role="group" aria-label="Board links">
+                <button
+                  type="button"
+                  className="quiet-control"
+                  onClick={() => openScreen('prep')}
+                  disabled={termId === ''}
+                >
+                  Prep
+                  {prep && prep.summary.needsAttention > 0
+                    ? ` (${prep.summary.needsAttention})`
+                    : ''}
+                </button>
+                <button
+                  type="button"
+                  className="quiet-control"
+                  onClick={() => openScreen('history')}
+                  disabled={draftId === ''}
+                >
+                  History
+                </button>
+                <button
+                  type="button"
+                  className="quiet-control"
+                  onClick={() => setShowCreate((v) => !v)}
+                  disabled={termId === '' || busy}
+                  aria-expanded={showCreate}
+                >
+                  {showCreate ? 'Hide copy' : 'Copy plan'}
+                </button>
+                <button
+                  type="button"
+                  className="quiet-control"
+                  onClick={() => {
+                    setShowLimitations((v) => !v)
+                    setShowRequests(false)
+                  }}
+                  aria-expanded={showLimitations}
+                >
+                  {showLimitations ? 'Hide notes' : 'Notes'}
+                </button>
                 <button
                   type="button"
                   className="quiet-control"
@@ -1183,6 +1242,89 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          {showCreate && (
+            <div className="panel plan-admin-panel" aria-label="Copy or empty plan">
+              <form className="create-draft" onSubmit={onCreateDraft}>
+                <label>
+                  Name
+                  <input
+                    value={newDraftName}
+                    onChange={(e) => setNewDraftName(e.target.value)}
+                    required
+                    maxLength={100}
+                  />
+                </label>
+                <label>
+                  Copy placements from
+                  <select
+                    value={copyFrom}
+                    onChange={(e) => setCopyFrom(e.target.value ? Number(e.target.value) : '')}
+                  >
+                    <option value="">Empty</option>
+                    {drafts.map((d) => (
+                      <option key={d.draftId} value={d.draftId}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={copyLocks}
+                    onChange={(e) => setCopyLocks(e.target.checked)}
+                    disabled={copyFrom === ''}
+                  />
+                  Copy locks
+                </label>
+                <button type="submit" disabled={busy || !newDraftName.trim()}>
+                  Create
+                </button>
+              </form>
+            </div>
+          )}
+
+          {showLimitations && (
+            <div className="panel plan-admin-panel" aria-label="Validation notes">
+              <div className="issues-bar">
+                <strong>Validation notes</strong>
+                <button
+                  type="button"
+                  onClick={() => setShowRequests((v) => !v)}
+                >
+                  All roommate wording ({workspace.roommateRequests.length})
+                </button>
+              </div>
+              <ul className="limitations">
+                {workspace.validationLimitations.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+              {showRequests && (
+                <div className="requests">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Requester</th>
+                        <th>Wording</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workspace.roommateRequests.map((r) => (
+                        <tr key={r.requestId}>
+                          <td>{r.requesterName}</td>
+                          <td>{r.rawText}</td>
+                          <td>{r.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {showColorGuide && (
             <div className="color-guide" role="note">
@@ -1778,262 +1920,214 @@ export default function App() {
         </>
       )}
 
-      {!workspace && !loading && !loadError && termId !== '' && (
+      {appScreen === 'board' && !workspace && !loading && !loadError && termId !== '' && (
         <p className="empty">Make a first plan for this term, or pick an existing working plan above.</p>
       )}
 
-      <section className="tools">
-        <button
-          type="button"
-          className="tools-toggle"
-          onClick={() => setShowTools((v) => !v)}
-        >
-          {showTools ? 'Hide advanced tools' : 'Advanced tools (roommate names, history, copy…)'}
-        </button>
-        {showTools && (
-          <div className="tools-body">
-            <div className="operator-block panel">
-              <label className="operator">
-                Your name (for locks &amp; undo)
-                <input
-                  value={operator}
-                  onChange={(e) => setOperator(e.target.value)}
-                  placeholder="Fictional staff name"
-                />
+      {appScreen === 'prep' && (
+        <section className="app-screen" aria-label="Roommate prep">
+          <div className="screen-bar">
+            <button type="button" className="screen-back" onClick={backToBoard}>
+              ← Back to board
+            </button>
+            <h2 className="screen-title">Roommate prep</h2>
+            <label className="screen-operator">
+              Your name
+              <input
+                value={operator}
+                onChange={(e) => setOperator(e.target.value)}
+                placeholder="Required for prep actions"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => termId !== '' && reloadPrep(termId)}
+              disabled={termId === '' || busy || prepLoading}
+            >
+              Refresh
+            </button>
+          </div>
+          {termId === '' ? (
+            <p className="empty">Pick a term first.</p>
+          ) : (
+            <>
+              <p className="prep-lede">
+                Fix names before generating when you can. Original wording stays unchanged.
+                {prep
+                  ? ` · ${prep.summary.needsAttention} need a look`
+                  : prepLoading
+                    ? ' · Loading…'
+                    : ''}
+              </p>
+              <label className="prep-filter">
+                Filter
+                <select
+                  value={prepFilter}
+                  onChange={(e) => setPrepFilter(e.target.value as typeof prepFilter)}
+                  disabled={prepLoading || !prep}
+                >
+                  <option value="all">All open</option>
+                  <option value="missing">Missing name</option>
+                  <option value="duplicate">Duplicates</option>
+                  <option value="nearOnly">Near spelling only</option>
+                  <option value="exact">Exact ready</option>
+                </select>
               </label>
-              <label className="operator">
-                Note (optional)
-                <input
-                  value={changeReason}
-                  onChange={(e) => setChangeReason(e.target.value)}
-                  placeholder="Not required"
-                  maxLength={255}
-                />
-              </label>
-            </div>
-
-            <div className="panel">
-              <div className="issues-bar">
-                <strong>Copy / empty plan</strong>
-                <button type="button" onClick={() => setShowCreate((v) => !v)} disabled={termId === '' || busy}>
-                  {showCreate ? 'Cancel' : 'New empty or copied plan'}
-                </button>
-              </div>
-              {showCreate && (
-                <form className="create-draft" onSubmit={onCreateDraft}>
-                  <label>
-                    Name
-                    <input
-                      value={newDraftName}
-                      onChange={(e) => setNewDraftName(e.target.value)}
-                      required
-                      maxLength={100}
-                    />
-                  </label>
-                  <label>
-                    Copy placements from
-                    <select
-                      value={copyFrom}
-                      onChange={(e) => setCopyFrom(e.target.value ? Number(e.target.value) : '')}
-                    >
-                      <option value="">Empty</option>
-                      {drafts.map((d) => (
-                        <option key={d.draftId} value={d.draftId}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={copyLocks}
-                      onChange={(e) => setCopyLocks(e.target.checked)}
-                      disabled={copyFrom === ''}
-                    />
-                    Copy locks
-                  </label>
-                  <button type="submit" disabled={busy || !newDraftName.trim()}>
-                    Create
-                  </button>
-                </form>
+              {prepError && (
+                <p className="banner bad" role="alert">
+                  {prepError}
+                </p>
               )}
-            </div>
-
-            <div className="panel">
-              <div className="issues-bar">
-                <strong>Roommate names</strong>
-                <span className="muted">
-                  {prepLoading
-                    ? 'Loading…'
-                    : prep
-                      ? `${prep.summary.needsAttention} need a look`
-                      : '—'}
-                </span>
-                <button type="button" onClick={() => setShowPrep((v) => !v)} disabled={termId === ''}>
-                  {showPrep ? 'Hide' : 'Show'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => termId !== '' && reloadPrep(termId)}
-                  disabled={termId === '' || busy || prepLoading || !showPrep}
-                >
-                  Refresh
-                </button>
-              </div>
-              {showPrep && termId !== '' && (
-                <>
-                  <p className="prep-lede">
-                    Fix names before generating when you can. Original wording stays unchanged.
-                  </p>
-                  <label className="prep-filter">
-                    Filter
-                    <select
-                      value={prepFilter}
-                      onChange={(e) => setPrepFilter(e.target.value as typeof prepFilter)}
-                      disabled={prepLoading || !prep}
-                    >
-                      <option value="all">All open</option>
-                      <option value="missing">Missing name</option>
-                      <option value="duplicate">Duplicates</option>
-                      <option value="nearOnly">Near spelling only</option>
-                      <option value="exact">Exact ready</option>
-                    </select>
-                  </label>
-                  {prepError && (
-                    <p className="banner bad" role="alert">
-                      {prepError}
-                    </p>
-                  )}
-                  {!prepLoading && !prepError && prep && prepItems.length === 0 && (
-                    <p className="empty">Nothing needs attention for this filter.</p>
-                  )}
-                  {prepItems.length > 0 && (
-                    <ul className="prep-list">
-                      {prepItems.map((item) => (
-                        <li key={item.requestId} className={`prep-item kind-${item.conflictKind}`}>
-                          <div className="prep-head">
-                            <div>
-                              <strong>{item.requesterName}</strong>{' '}
-                              <span className="muted">{item.requesterFloorPlanCode}</span>
-                              <br />
-                              Asked for: <em>“{item.rawText}”</em>
-                            </div>
-                            <p className="prep-hint">{item.suggestedAction}</p>
-                          </div>
-                          {item.candidates.length > 0 ? (
-                            <label className="prep-pick">
-                              Candidate
-                              <select
-                                value={prepPicks[item.requestId] ?? ''}
-                                onChange={(e) =>
-                                  setPrepPicks((prev) => ({
-                                    ...prev,
-                                    [item.requestId]: e.target.value ? Number(e.target.value) : '',
-                                  }))
-                                }
-                                disabled={busy}
-                              >
-                                <option value="">Select…</option>
-                                {item.candidates.map((c) => (
-                                  <option key={c.tenantId} value={c.tenantId}>
-                                    {c.firstName} {c.lastName} · {c.matchKind}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          ) : (
-                            <p className="muted">No candidates — do not invent a person.</p>
-                          )}
-                          <label className="prep-reason">
-                            Reason (for mark actions)
-                            <input
-                              value={prepReasons[item.requestId] ?? ''}
-                              onChange={(e) =>
-                                setPrepReasons((prev) => ({
-                                  ...prev,
-                                  [item.requestId]: e.target.value,
-                                }))
-                              }
-                              maxLength={500}
-                              disabled={busy}
-                            />
-                          </label>
-                          <div className="prep-actions">
-                            <button
-                              type="button"
-                              disabled={busy || !operator.trim() || item.candidates.length === 0}
-                              onClick={() => onResolvePrep(item)}
-                            >
-                              Confirm pick
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy || !operator.trim()}
-                              onClick={() => onMarkPrep(item, 'unresolved')}
-                            >
-                              Unresolved
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy || !operator.trim()}
-                              onClick={() => onMarkPrep(item, 'ambiguous')}
-                            >
-                              Ambiguous
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy || !operator.trim()}
-                              onClick={() => onMarkPrep(item, 'excluded')}
-                            >
-                              Excluded
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
+              {!prepLoading && !prepError && prep && prepItems.length === 0 && (
+                <p className="empty">Nothing needs attention for this filter.</p>
               )}
-            </div>
+              {prepItems.length > 0 && (
+                <ul className="prep-list">
+                  {prepItems.map((item) => (
+                    <li key={item.requestId} className={`prep-item kind-${item.conflictKind}`}>
+                      <div className="prep-head">
+                        <div>
+                          <strong>{item.requesterName}</strong>{' '}
+                          <span className="muted">{item.requesterFloorPlanCode}</span>
+                          <br />
+                          Asked for: <em>“{item.rawText}”</em>
+                        </div>
+                        <p className="prep-hint">{item.suggestedAction}</p>
+                      </div>
+                      {item.candidates.length > 0 ? (
+                        <label className="prep-pick">
+                          Candidate
+                          <select
+                            value={prepPicks[item.requestId] ?? ''}
+                            onChange={(e) =>
+                              setPrepPicks((prev) => ({
+                                ...prev,
+                                [item.requestId]: e.target.value ? Number(e.target.value) : '',
+                              }))
+                            }
+                            disabled={busy}
+                          >
+                            <option value="">Select…</option>
+                            {item.candidates.map((c) => (
+                              <option key={c.tenantId} value={c.tenantId}>
+                                {c.firstName} {c.lastName} · {c.matchKind}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : (
+                        <p className="muted">No candidates — do not invent a person.</p>
+                      )}
+                      <label className="prep-reason">
+                        Reason (for mark actions)
+                        <input
+                          value={prepReasons[item.requestId] ?? ''}
+                          onChange={(e) =>
+                            setPrepReasons((prev) => ({
+                              ...prev,
+                              [item.requestId]: e.target.value,
+                            }))
+                          }
+                          maxLength={500}
+                          disabled={busy}
+                        />
+                      </label>
+                      <div className="prep-actions">
+                        <button
+                          type="button"
+                          disabled={busy || !operator.trim() || item.candidates.length === 0}
+                          onClick={() => onResolvePrep(item)}
+                        >
+                          Confirm pick
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy || !operator.trim()}
+                          onClick={() => onMarkPrep(item, 'unresolved')}
+                        >
+                          Unresolved
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy || !operator.trim()}
+                          onClick={() => onMarkPrep(item, 'ambiguous')}
+                        >
+                          Ambiguous
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy || !operator.trim()}
+                          onClick={() => onMarkPrep(item, 'excluded')}
+                        >
+                          Excluded
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
-            <div className="panel">
-              <div className="issues-bar">
-                <strong>Change history</strong>
-                <span className="muted">
-                  {historyLoading
-                    ? 'Loading…'
-                    : `${history.length} recent · ${history.filter((h) => h.isUndoable).length} undoable`}
-                </span>
-                <button type="button" onClick={() => setHistoryExpanded((v) => !v)}>
-                  {historyExpanded ? 'Hide' : 'Show'}
-                </button>
-                <button
-                  type="button"
-                  disabled={draftId === '' || busy || historyLoading || !historyExpanded}
-                  onClick={() => draftId !== '' && reloadHistory(draftId)}
-                >
-                  Refresh
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    !editable || busy || !lastUndoable || !operator.trim() || !historyExpanded
-                  }
-                  onClick={() => onUndo(null)}
-                >
-                  Undo last
-                </button>
-              </div>
-              {historyExpanded && historyError && (
+      {appScreen === 'history' && (
+        <section className="app-screen" aria-label="Change history">
+          <div className="screen-bar">
+            <button type="button" className="screen-back" onClick={backToBoard}>
+              ← Back to board
+            </button>
+            <h2 className="screen-title">Change history</h2>
+            <label className="screen-operator">
+              Your name
+              <input
+                value={operator}
+                onChange={(e) => setOperator(e.target.value)}
+                placeholder="Required for undo"
+              />
+            </label>
+            <label className="screen-operator">
+              Note
+              <input
+                value={changeReason}
+                onChange={(e) => setChangeReason(e.target.value)}
+                placeholder="Optional"
+                maxLength={255}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={draftId === '' || busy || historyLoading}
+              onClick={() => draftId !== '' && reloadHistory(draftId)}
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              disabled={!editable || busy || !lastUndoable || !operator.trim()}
+              onClick={() => onUndo(null)}
+            >
+              Undo last
+            </button>
+          </div>
+          {draftId === '' ? (
+            <p className="empty">Open a working plan on the board first.</p>
+          ) : (
+            <>
+              <p className="muted screen-meta">
+                {historyLoading
+                  ? 'Loading…'
+                  : `${history.length} recent · ${history.filter((h) => h.isUndoable).length} undoable`}
+              </p>
+              {historyError && (
                 <p className="banner bad" role="alert">
                   {historyError}
                 </p>
               )}
-              {historyExpanded && !historyLoading && history.length === 0 && (
+              {!historyLoading && history.length === 0 && (
                 <p className="empty">No recorded changes yet.</p>
               )}
-              {historyExpanded && history.length > 0 && (
+              {history.length > 0 && (
                 <div className="history-table-wrap">
                   <table>
                     <thead>
@@ -2077,53 +2171,10 @@ export default function App() {
                   </table>
                 </div>
               )}
-            </div>
-
-            {workspace && (
-              <div className="panel">
-                <div className="issues-bar">
-                  <strong>Validation notes</strong>
-                  <button type="button" onClick={() => setShowLimitations((v) => !v)}>
-                    Limitations
-                  </button>
-                  <button type="button" onClick={() => setShowRequests((v) => !v)}>
-                    All roommate wording ({workspace.roommateRequests.length})
-                  </button>
-                </div>
-                {showLimitations && (
-                  <ul className="limitations">
-                    {workspace.validationLimitations.map((l) => (
-                      <li key={l}>{l}</li>
-                    ))}
-                  </ul>
-                )}
-                {showRequests && (
-                  <div className="requests">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Requester</th>
-                          <th>Wording</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workspace.roommateRequests.map((r) => (
-                          <tr key={r.requestId}>
-                            <td>{r.requesterName}</td>
-                            <td>{r.rawText}</td>
-                            <td>{r.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+            </>
+          )}
+        </section>
+      )}
 
       {busy && (
         <p className="busy" role="status">
