@@ -261,6 +261,55 @@ body {
   margin: 0 0 0.35rem;
 }
 
+.selected-name-block,
+.modal-title-block {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.55rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.modal-title-block h2 {
+  margin: 0;
+}
+
+.status-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  border-left-width: 3px;
+  white-space: nowrap;
+}
+
+.status-tag.chip-renew-stay {
+  background: var(--renew-stay-bg);
+  border-left-color: var(--renew-stay);
+  color: var(--renew-stay);
+}
+
+.status-tag.chip-renew-move {
+  background: var(--renew-move-bg);
+  border-left-color: var(--renew-move);
+  color: var(--renew-move);
+}
+
+.status-tag.chip-renew {
+  background: var(--renew-bg);
+  border-left-color: var(--renew);
+  color: var(--renew);
+}
+
+.status-tag.chip-new {
+  background: var(--tenant-new-bg);
+  border-left-color: var(--tenant-new);
+  color: var(--tenant-new);
+}
+
 .details-btn {
   padding: 0.28rem 0.55rem !important;
   font-size: 0.85rem !important;

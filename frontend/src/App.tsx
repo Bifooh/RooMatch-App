@@ -136,6 +136,20 @@ function labelStayPreference(stay: string | null | undefined) {
   return stay
 }
 
+/** Short colored tag matching chip colors (for Adjust + details modal). */
+function statusTagMeta(tenantType: string, stayPreference: string | null | undefined) {
+  if (tenantType === 'renewing') {
+    if (stayPreference === 'stay') {
+      return { className: 'status-tag chip-renew-stay', title: 'Renewing · prefer stay' }
+    }
+    if (stayPreference === 'move') {
+      return { className: 'status-tag chip-renew-move', title: 'Renewing · open to move' }
+    }
+    return { className: 'status-tag chip-renew', title: 'Renewing · no preference' }
+  }
+  return { className: 'status-tag chip-new', title: 'New contract' }
+}
+
 export default function App() {
   const [terms, setTerms] = useState<TermInfo[]>([])
   const [termId, setTermId] = useState<number | ''>('')
@@ -387,6 +401,10 @@ export default function App() {
     }
   }, [workspace, detailsContractId])
 
+  const detailsStatusTag = studentDetails
+    ? statusTagMeta(studentDetails.tenantType, studentDetails.stayPreference)
+    : null
+
   const selectedLabel = useMemo(() => {
     if (!workspace || !selected) return null
     if (selected.kind === 'unassigned') {
@@ -396,6 +414,19 @@ export default function App() {
     for (const a of workspace.apartments) {
       const o = a.occupants.find((x) => x.contractId === selected.contractId)
       if (o) return `${displayName(o.firstName, o.lastName, o.tenantCode)} · apt ${a.apartmentNumber}`
+    }
+    return null
+  }, [workspace, selected])
+
+  const selectedStatus = useMemo(() => {
+    if (!workspace || !selected) return null
+    if (selected.kind === 'unassigned') {
+      const u = workspace.unassigned.find((x) => x.contractId === selected.contractId)
+      return u ? statusTagMeta(u.tenantType, u.stayPreference) : null
+    }
+    for (const a of workspace.apartments) {
+      const o = a.occupants.find((x) => x.contractId === selected.contractId)
+      if (o) return statusTagMeta(o.tenantType, o.stayPreference)
     }
     return null
   }, [workspace, selected])
@@ -1098,7 +1129,12 @@ export default function App() {
                 {selected && (
                   <>
                     <p className="selected-line">
-                      <strong>{selectedLabel}</strong>
+                      <span className="selected-name-block">
+                        <strong>{selectedLabel}</strong>
+                        {selectedStatus && (
+                          <span className={selectedStatus.className}>{selectedStatus.title}</span>
+                        )}
+                      </span>
                       <button
                         type="button"
                         className="details-btn"
@@ -1754,9 +1790,22 @@ export default function App() {
             aria-labelledby="student-details-title"
           >
             <div className="modal-head">
-              <h2 id="student-details-title">
-                {studentDetails.firstName} {studentDetails.lastName}
-              </h2>
+              <div className="modal-title-block">
+                <h2 id="student-details-title">
+                  {studentDetails.firstName} {studentDetails.lastName}
+                </h2>
+                <span
+                  className={
+                    statusTagMeta(studentDetails.tenantType, studentDetails.stayPreference)
+                      .className
+                  }
+                >
+                  {
+                    statusTagMeta(studentDetails.tenantType, studentDetails.stayPreference)
+                      .title
+                  }
+                </span>
+              </div>
               <button type="button" className="modal-close" onClick={closeDetails} autoFocus>
                 Close
               </button>
