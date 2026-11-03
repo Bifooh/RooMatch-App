@@ -59,7 +59,9 @@ public sealed record AssignedTenantInfo(
     DateTime? LockedAt,
     string? AssignmentSource,
     string TenantType,
-    string? StayPreference);
+    string? StayPreference,
+    uint FloorPlanId,
+    string FloorPlanCode);
 
 public sealed record ApartmentWorkspaceRow(
     uint ApartmentId,

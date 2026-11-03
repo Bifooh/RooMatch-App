@@ -42,6 +42,8 @@ export type AssignedTenant = {
   assignmentSource: string | null
   tenantType: string
   stayPreference: string | null
+  floorPlanId: number
+  floorPlanCode: string
 }
 
 export type ApartmentRow = {

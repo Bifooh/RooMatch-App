@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react'
 import {
   createDraft,
   fetchDrafts,
@@ -165,6 +172,10 @@ export default function App() {
   const [showFloorPlanCodes, setShowFloorPlanCodes] = useState(false)
   const [boardTab, setBoardTab] = useState<BoardTab>('women')
   const [detailsContractId, setDetailsContractId] = useState<number | null>(null)
+  const [dragContractId, setDragContractId] = useState<number | null>(null)
+  const [dropHover, setDropHover] = useState<number | 'waiting' | null>(null)
+  const dragMovedRef = useRef(false)
+  const dragContractIdRef = useRef<number | null>(null)
   const [prep, setPrep] = useState<RoommatePrepPayload | null>(null)
   const [prepLoading, setPrepLoading] = useState(false)
   const [prepError, setPrepError] = useState<string | null>(null)
@@ -403,18 +414,45 @@ export default function App() {
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [workspace, selected])
 
+  function contractPlan(contractId: number): { floorPlanId: number; floorPlanCode: string } | null {
+    if (!workspace) return null
+    const un = workspace.unassigned.find((u) => u.contractId === contractId)
+    if (un) return { floorPlanId: un.floorPlanId, floorPlanCode: un.floorPlanCode }
+    for (const a of workspace.apartments) {
+      const o = a.occupants.find((x) => x.contractId === contractId)
+      if (o) return { floorPlanId: o.floorPlanId, floorPlanCode: o.floorPlanCode }
+    }
+    return null
+  }
+
   const compatibleApartments = useMemo(() => {
     if (!workspace || !selected) return workspace?.apartments ?? []
-    let planId: number | null = null
-    if (selected.kind === 'unassigned') {
-      planId =
-        workspace.unassigned.find((u) => u.contractId === selected.contractId)?.floorPlanId ?? null
-    } else {
-      const apt = workspace.apartments.find((a) => a.apartmentId === selected.apartmentId)
-      planId = apt?.floorPlanId ?? null
-    }
-    return workspace.apartments.filter((a) => planId == null || a.floorPlanId === planId)
+    const plan = contractPlan(selected.contractId)
+    if (!plan) return []
+    return workspace.apartments
+      .filter((a) => a.floorPlanId === plan.floorPlanId)
+      .sort((a, b) => a.apartmentNumber.localeCompare(b.apartmentNumber))
   }, [workspace, selected])
+
+  const dragPlan = useMemo(
+    () => (dragContractId != null ? contractPlan(dragContractId) : null),
+    [dragContractId, workspace],
+  )
+
+  function apartmentIsDropValid(apartmentId: number, contractId: number) {
+    if (!workspace) return false
+    const plan = contractPlan(contractId)
+    const apt = workspace.apartments.find((a) => a.apartmentId === apartmentId)
+    if (!plan || !apt) return false
+    if (apt.floorPlanId !== plan.floorPlanId) return false
+    const already = apt.occupants.some((o) => o.contractId === contractId)
+    if (already) return false
+    return apt.occupants.length < apt.effectiveCapacity
+  }
+
+  function operatorName() {
+    return operator.trim() || 'Fictional Operator'
+  }
 
   const nameByCode = useMemo(() => {
     const map = new Map<string, string>()
@@ -628,14 +666,84 @@ export default function App() {
     setSelected({ kind: 'unassigned', contractId: u.contractId })
     setSwapTarget('')
     setMoveTarget('')
-    setDetailsContractId(u.contractId)
   }
 
   function selectAssigned(contractId: number, apartmentId: number) {
     setSelected({ kind: 'assigned', contractId, apartmentId })
     setSwapTarget('')
     setMoveTarget('')
+  }
+
+  function openDetails(contractId: number) {
     setDetailsContractId(contractId)
+  }
+
+  function beginDrag(contractId: number, e: DragEvent) {
+    dragMovedRef.current = false
+    dragContractIdRef.current = contractId
+    setDragContractId(contractId)
+    e.dataTransfer.setData('text/plain', String(contractId))
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function endDrag() {
+    dragContractIdRef.current = null
+    setDragContractId(null)
+    setDropHover(null)
+  }
+
+  function onNameClick(select: () => void) {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false
+      return
+    }
+    select()
+  }
+
+  function contractIdFromDrop(e: DragEvent) {
+    const raw = e.dataTransfer.getData('text/plain')
+    const parsed = raw ? Number(raw) : NaN
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+    return dragContractIdRef.current
+  }
+
+  function dropOnApartment(apartmentId: number, e: DragEvent) {
+    const contractId = contractIdFromDrop(e)
+    endDrag()
+    if (draftId === '' || !editable || busy || contractId == null) return
+    const plan = contractPlan(contractId)
+    const apt = workspace?.apartments.find((a) => a.apartmentId === apartmentId)
+    if (!plan || !apt) return
+    if (apt.occupants.some((o) => o.contractId === contractId)) return
+    if (apt.floorPlanId !== plan.floorPlanId) {
+      setBanner({
+        kind: 'bad',
+        text: `Wrong floor plan: need ${plan.floorPlanCode}, apartment ${apt.apartmentNumber} is ${apt.floorPlanCode}.`,
+      })
+      return
+    }
+    if (apt.occupants.length >= apt.effectiveCapacity) {
+      setBanner({
+        kind: 'bad',
+        text: `Apartment ${apt.apartmentNumber} is full (${apt.occupants.length}/${apt.effectiveCapacity}).`,
+      })
+      return
+    }
+    // Same-plan with free space: call API (may still reject locks/restrictions).
+    void runMutation(() =>
+      moveTenant(draftId, contractId, apartmentId, operatorName(), changeReason.trim() || null),
+    )
+  }
+
+  function dropUnassign(e: DragEvent) {
+    const contractId = contractIdFromDrop(e)
+    endDrag()
+    if (draftId === '' || !editable || busy || contractId == null) return
+    const isWaiting = workspace?.unassigned.some((u) => u.contractId === contractId)
+    if (isWaiting) return
+    void runMutation(() =>
+      moveTenant(draftId, contractId, null, operatorName(), changeReason.trim() || null),
+    )
   }
 
   function closeDetails() {
@@ -890,10 +998,40 @@ export default function App() {
                 {filteredApartments.map((a) => {
                   const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
                   const bldg = buildingClass(a.building)
+                  const dragging = dragContractId != null
+                  const valid =
+                    dragging && dragContractId != null
+                      ? apartmentIsDropValid(a.apartmentId, dragContractId)
+                      : false
+                  const samePlan =
+                    dragging && dragPlan != null && a.floorPlanId === dragPlan.floorPlanId
+                  const dropClass = dragging
+                    ? valid
+                      ? 'drop-valid'
+                      : samePlan
+                        ? 'drop-full'
+                        : 'drop-invalid'
+                    : ''
                   return (
                     <li
                       key={a.apartmentId}
-                      className={`apt-box ${bldg} ${fill}`}
+                      className={`apt-box ${bldg} ${fill} ${dropClass} ${dropHover === a.apartmentId ? 'drop-hover' : ''}`}
+                      onDragOver={(e) => {
+                        const draggingId = dragContractIdRef.current ?? dragContractId
+                        if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
+                        e.preventDefault()
+                        const id = draggingId
+                        const ok = id != null && apartmentIsDropValid(a.apartmentId, id)
+                        e.dataTransfer.dropEffect = ok ? 'move' : 'none'
+                        setDropHover(a.apartmentId)
+                      }}
+                      onDragLeave={() => {
+                        setDropHover((h) => (h === a.apartmentId ? null : h))
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        dropOnApartment(a.apartmentId, e)
+                      }}
                     >
                       <div className="apt-box-head">
                         <strong>{a.apartmentNumber}</strong>
@@ -909,19 +1047,36 @@ export default function App() {
                           <li className="apt-empty">Empty</li>
                         )}
                         {a.occupants.map((o) => (
-                          <li key={o.contractId}>
+                          <li key={o.contractId} className="chip-row">
                             <button
                               type="button"
+                              draggable={editable && !busy}
                               className={chipClassName(
                                 selected?.contractId === o.contractId,
                                 o.tenantType,
                                 o.stayPreference,
                               )}
-                              onClick={() => selectAssigned(o.contractId, a.apartmentId)}
-                              aria-haspopup="dialog"
+                              onDragStart={(e) => {
+                                dragMovedRef.current = true
+                                selectAssigned(o.contractId, a.apartmentId)
+                                beginDrag(o.contractId, e)
+                              }}
+                              onDragEnd={endDrag}
+                              onClick={() =>
+                                onNameClick(() => selectAssigned(o.contractId, a.apartmentId))
+                              }
                             >
                               {o.firstName} {o.lastName}
                               {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
+                            </button>
+                            <button
+                              type="button"
+                              className="chip-info"
+                              aria-label={`Details for ${o.firstName} ${o.lastName}`}
+                              title="Details"
+                              onClick={() => openDetails(o.contractId)}
+                            >
+                              i
                             </button>
                           </li>
                         ))}
@@ -936,12 +1091,28 @@ export default function App() {
               <section className="panel" aria-label="Adjust selection">
                 <h2>Adjust</h2>
                 {!selected && (
-                  <p className="muted">Click a student in a box, or someone waiting below.</p>
+                  <p className="muted">
+                    Drag a student onto an apartment box, or click then use Move below.
+                  </p>
                 )}
                 {selected && (
                   <>
-                    <p>
+                    <p className="selected-line">
                       <strong>{selectedLabel}</strong>
+                      <button
+                        type="button"
+                        className="details-btn"
+                        onClick={() => openDetails(selected.contractId)}
+                      >
+                        Details
+                      </button>
+                    </p>
+                    <p className="muted move-hint">
+                      Same floor plan only
+                      {contractPlan(selected.contractId)
+                        ? ` (${contractPlan(selected.contractId)!.floorPlanCode})`
+                        : ''}
+                      . Drag onto a highlighted box, or pick one here.
                     </p>
                     <div className="action-row">
                       <label>
@@ -953,24 +1124,42 @@ export default function App() {
                           }
                           disabled={!editable || busy}
                         >
-                          <option value="">Choose…</option>
-                          {compatibleApartments.map((a) => (
-                            <option key={a.apartmentId} value={a.apartmentId}>
-                              {a.apartmentNumber} · {a.occupants.length}/{a.effectiveCapacity}
+                          <option value="">Choose same-plan apartment…</option>
+                          {compatibleApartments.length === 0 && (
+                            <option value="" disabled>
+                              No apartments for this floor plan
                             </option>
-                          ))}
+                          )}
+                          {compatibleApartments.map((a) => {
+                            const free = a.effectiveCapacity - a.occupants.length
+                            const here =
+                              selected.kind === 'assigned' &&
+                              selected.apartmentId === a.apartmentId
+                            return (
+                              <option
+                                key={a.apartmentId}
+                                value={a.apartmentId}
+                                disabled={here || free <= 0}
+                              >
+                                {a.apartmentNumber} · {a.floorPlanCode} · fl {a.floor} ·{' '}
+                                {a.occupants.length}/{a.effectiveCapacity}
+                                {free <= 0 ? ' (full)' : ''}
+                                {here ? ' (here)' : ''}
+                              </option>
+                            )
+                          })}
                         </select>
                       </label>
                       <button
                         type="button"
-                        disabled={!editable || busy || moveTarget === '' || !operator.trim()}
+                        disabled={!editable || busy || moveTarget === ''}
                         onClick={() =>
                           runMutation(() =>
                             moveTenant(
                               draftId as number,
                               selected.contractId,
                               moveTarget as number,
-                              operator.trim(),
+                              operatorName(),
                               changeReason.trim() || null,
                             ),
                           )
@@ -980,16 +1169,14 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        disabled={
-                          !editable || busy || selected.kind !== 'assigned' || !operator.trim()
-                        }
+                        disabled={!editable || busy || selected.kind !== 'assigned'}
                         onClick={() =>
                           runMutation(() =>
                             moveTenant(
                               draftId as number,
                               selected.contractId,
                               null,
-                              operator.trim(),
+                              operatorName(),
                               changeReason.trim() || null,
                             ),
                           )
@@ -1019,14 +1206,14 @@ export default function App() {
                         </label>
                         <button
                           type="button"
-                          disabled={!editable || busy || swapTarget === '' || !operator.trim()}
+                          disabled={!editable || busy || swapTarget === ''}
                           onClick={() =>
                             runMutation(() =>
                               swapTenants(
                                 draftId as number,
                                 selected.contractId,
                                 swapTarget as number,
-                                operator.trim(),
+                                operatorName(),
                                 changeReason.trim() || null,
                               ),
                             )
@@ -1036,7 +1223,7 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          disabled={!editable || busy || !operator.trim()}
+                          disabled={!editable || busy}
                           onClick={() => {
                             const apt = workspace.apartments.find(
                               (a) => a.apartmentId === selected.apartmentId,
@@ -1050,7 +1237,7 @@ export default function App() {
                                 draftId as number,
                                 selected.contractId,
                                 locked,
-                                operator.trim(),
+                                operatorName(),
                                 changeReason.trim() || null,
                               ),
                             )
@@ -1064,12 +1251,29 @@ export default function App() {
                 )}
               </section>
 
-              <section className="panel" aria-label="Waiting list">
+              <section
+                className={`panel waiting-drop ${dragContractId != null ? 'drop-unassign' : ''} ${dropHover === 'waiting' ? 'drop-hover' : ''}`}
+                aria-label="Waiting list"
+                onDragOver={(e) => {
+                  const draggingId = dragContractIdRef.current ?? dragContractId
+                  if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
+                  const id = draggingId
+                  if (id != null && workspace.unassigned.some((u) => u.contractId === id)) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  setDropHover('waiting')
+                }}
+                onDragLeave={() => setDropHover((h) => (h === 'waiting' ? null : h))}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  dropUnassign(e)
+                }}
+              >
                 <h2>
                   Waiting · {boardTab === 'women' ? 'Women' : 'Men'} ({filteredUnassigned.length})
                 </h2>
                 <p className="muted waiting-scope">
-                  Showing unassigned on this tab’s floor plans
+                  Drag here to unassign · same floor plan on this tab
                   {waitingOtherTab > 0
                     ? ` · ${waitingOtherTab} waiting on the other tab`
                     : ''}
@@ -1080,19 +1284,34 @@ export default function App() {
                 )}
                 <ul className="unassigned-list">
                   {filteredUnassigned.map((u) => (
-                    <li key={u.contractId}>
+                    <li key={u.contractId} className="chip-row">
                       <button
                         type="button"
+                        draggable={editable && !busy}
                         className={chipClassName(
                           selected?.contractId === u.contractId,
                           u.tenantType,
                           u.stayPreference,
                         )}
-                        onClick={() => selectUnassigned(u)}
-                        aria-haspopup="dialog"
+                        onDragStart={(e) => {
+                          dragMovedRef.current = true
+                          selectUnassigned(u)
+                          beginDrag(u.contractId, e)
+                        }}
+                        onDragEnd={endDrag}
+                        onClick={() => onNameClick(() => selectUnassigned(u))}
                       >
                         {u.firstName} {u.lastName}
                         <span className="muted"> · {u.floorPlanCode}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="chip-info"
+                        aria-label={`Details for ${u.firstName} ${u.lastName}`}
+                        title="Details"
+                        onClick={() => openDetails(u.contractId)}
+                      >
+                        i
                       </button>
                     </li>
                   ))}

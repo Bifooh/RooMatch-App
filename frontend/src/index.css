@@ -179,6 +179,93 @@ body {
   line-height: 1.35;
 }
 
+.move-hint {
+  margin: 0 0 0.45rem;
+}
+
+.apt-box.drop-valid {
+  outline: 2px solid var(--ok);
+  outline-offset: 1px;
+  background: var(--ok-bg);
+}
+
+.apt-box.drop-full {
+  outline: 2px dashed var(--warn);
+  outline-offset: 1px;
+}
+
+.apt-box.drop-invalid {
+  opacity: 0.55;
+}
+
+.apt-box.drop-hover.drop-valid {
+  outline-width: 3px;
+}
+
+.waiting-drop.drop-unassign {
+  outline: 2px dashed var(--muted);
+  outline-offset: 2px;
+}
+
+.waiting-drop.drop-hover {
+  outline: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.chip[draggable='true'] {
+  cursor: grab;
+}
+
+.chip[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.chip-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.chip-row .chip {
+  flex: 1;
+  min-width: 0;
+}
+
+.chip-info {
+  flex-shrink: 0;
+  width: 1.55rem !important;
+  min-width: 1.55rem;
+  padding: 0 !important;
+  font-size: 0.78rem !important;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, "Iowan Old Style", serif;
+  color: var(--muted) !important;
+  background: var(--panel) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.chip-info:hover {
+  color: var(--ink) !important;
+  border-color: var(--accent) !important;
+}
+
+.selected-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 0.35rem;
+}
+
+.details-btn {
+  padding: 0.28rem 0.55rem !important;
+  font-size: 0.85rem !important;
+}
+
 .board-filters {
   display: flex;
   flex-wrap: wrap;

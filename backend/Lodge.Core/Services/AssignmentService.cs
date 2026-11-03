@@ -191,7 +191,7 @@ public sealed class AssignmentService
                         return new AssignedTenantInfo(
                             c.ContractId, c.TenantId, c.TenantCode, c.FirstName, c.LastName,
                             asg.AssignmentId, asg.IsLocked, asg.LockedBy, asg.LockedAt, asg.Source,
-                            c.TenantType, c.StayPreference);
+                            c.TenantType, c.StayPreference, c.FloorPlanId, c.FloorPlanCode);
                     })
                     .OrderBy(t => t.LastName).ThenBy(t => t.FirstName).ThenBy(t => t.TenantCode)
                     .ToList();
