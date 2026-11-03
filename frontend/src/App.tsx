@@ -160,6 +160,8 @@ export default function App() {
   const [operator, setOperator] = useState('Fictional Operator')
   const [query, setQuery] = useState('')
   const [planFilter, setPlanFilter] = useState('')
+  const [renewingOnly, setRenewingOnly] = useState(false)
+  const [lockedOnly, setLockedOnly] = useState(false)
   const [selected, setSelected] = useState<Selected>(null)
   const [swapTarget, setSwapTarget] = useState<number | ''>('')
   const [moveTarget, setMoveTarget] = useState<number | ''>('')
@@ -295,11 +297,88 @@ export default function App() {
     ].sort()
   }, [workspace, boardTab])
 
+  function personMatchesManagerFilters(tenantType: string, isLocked: boolean) {
+    if (renewingOnly && tenantType !== 'renewing') return false
+    if (lockedOnly && !isLocked) return false
+    return true
+  }
+
+  const filtersActive =
+    Boolean(query.trim()) || Boolean(planFilter) || renewingOnly || lockedOnly
+
+  function clearBoardFilters() {
+    setQuery('')
+    setPlanFilter('')
+    setRenewingOnly(false)
+    setLockedOnly(false)
+  }
+
+  function rosterForApartment(a: {
+    apartmentNumber: string
+    floorPlanCode: string
+    occupants: {
+      contractId: number
+      firstName: string
+      lastName: string
+      tenantCode: string
+      tenantType: string
+      stayPreference: string | null
+      isLocked: boolean
+    }[]
+  }) {
+    const people = a.occupants.filter((o) =>
+      personMatchesManagerFilters(o.tenantType, o.isLocked),
+    )
+    if (renewingOnly || lockedOnly) {
+      return people.filter((o) =>
+        matchesQuery(query, {
+          name: `${o.firstName} ${o.lastName}`,
+          code: o.tenantCode,
+          apartment: a.apartmentNumber,
+          plan: a.floorPlanCode,
+        }),
+      )
+    }
+    const aptHit =
+      !query.trim() ||
+      matchesQuery(query, {
+        apartment: a.apartmentNumber,
+        plan: a.floorPlanCode,
+      })
+    if (aptHit) return a.occupants
+    return a.occupants.filter((o) =>
+      matchesQuery(query, {
+        name: `${o.firstName} ${o.lastName}`,
+        code: o.tenantCode,
+        apartment: a.apartmentNumber,
+        plan: a.floorPlanCode,
+      }),
+    )
+  }
+
   const filteredApartments = useMemo(() => {
     if (!workspace) return []
+    const personFilters = renewingOnly || lockedOnly
     return workspace.apartments.filter((a) => {
       if (!buildingMatchesTab(a.building, a.apartmentNumber, boardTab)) return false
       if (planFilter && a.floorPlanCode !== planFilter) return false
+
+      const matchingPeople = a.occupants.filter((o) =>
+        personMatchesManagerFilters(o.tenantType, o.isLocked),
+      )
+      const queryPeople = matchingPeople.filter((o) =>
+        matchesQuery(query, {
+          name: `${o.firstName} ${o.lastName}`,
+          code: o.tenantCode,
+          apartment: a.apartmentNumber,
+          plan: a.floorPlanCode,
+        }),
+      )
+
+      if (personFilters) {
+        return query.trim() ? queryPeople.length > 0 : matchingPeople.length > 0
+      }
+
       const aptHit = matchesQuery(query, {
         apartment: a.apartmentNumber,
         plan: a.floorPlanCode,
@@ -314,20 +393,21 @@ export default function App() {
       )
       return !query.trim() || aptHit || occHit
     })
-  }, [workspace, query, planFilter, boardTab])
+  }, [workspace, query, planFilter, boardTab, renewingOnly, lockedOnly])
 
   const filteredUnassigned = useMemo(() => {
     if (!workspace) return []
     return workspace.unassigned.filter((u) => {
       if (!planMatchesTab(u.floorPlanCode, boardTab)) return false
       if (planFilter && u.floorPlanCode !== planFilter) return false
+      if (!personMatchesManagerFilters(u.tenantType, false)) return false
       return matchesQuery(query, {
         name: `${u.firstName} ${u.lastName}`,
         code: u.tenantCode,
         plan: u.floorPlanCode,
       })
     })
-  }, [workspace, query, planFilter, boardTab])
+  }, [workspace, query, planFilter, boardTab, renewingOnly, lockedOnly])
 
   /** One student per row for the List sheet lens (same filters as Boxes). */
   const sheetRows = useMemo(() => {
@@ -348,7 +428,7 @@ export default function App() {
 
     for (const a of filteredApartments) {
       const fill = `${a.occupants.length}/${a.effectiveCapacity}`
-      for (const o of a.occupants) {
+      for (const o of rosterForApartment(a)) {
         rows.push({
           key: `a-${o.contractId}`,
           kind: 'assigned',
@@ -384,7 +464,7 @@ export default function App() {
     }
 
     return rows
-  }, [filteredApartments, filteredUnassigned])
+  }, [filteredApartments, filteredUnassigned, query, renewingOnly, lockedOnly])
 
   const waitingOtherTab = useMemo(() => {
     if (!workspace) return 0
@@ -1020,7 +1100,7 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <div className="board-filters">
+            <div className="board-filters" aria-label="Board filters">
               <label>
                 Find
                 <input
@@ -1040,6 +1120,30 @@ export default function App() {
                   ))}
                 </select>
               </label>
+              <label className="filter-check">
+                <input
+                  type="checkbox"
+                  checked={renewingOnly}
+                  onChange={(e) => setRenewingOnly(e.target.checked)}
+                />
+                Renewing only
+              </label>
+              <label className="filter-check">
+                <input
+                  type="checkbox"
+                  checked={lockedOnly}
+                  onChange={(e) => setLockedOnly(e.target.checked)}
+                />
+                Locked only
+              </label>
+              <button
+                type="button"
+                className="clear-filters"
+                onClick={clearBoardFilters}
+                disabled={!filtersActive}
+              >
+                Clear filters
+              </button>
               <div className="board-quiet" role="group" aria-label="References">
                 <button
                   type="button"
@@ -1303,6 +1407,7 @@ export default function App() {
                   {filteredApartments.map((a) => {
                     const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
                     const bldg = buildingClass(a.building)
+                    const roster = rosterForApartment(a)
                     const dragging = dragContractId != null
                     const valid =
                       dragging && dragContractId != null
@@ -1350,7 +1455,10 @@ export default function App() {
                         </div>
                         <ul className="occ-chips">
                           {a.occupants.length === 0 && <li className="apt-empty">Empty</li>}
-                          {a.occupants.map((o) => (
+                          {a.occupants.length > 0 && roster.length === 0 && (
+                            <li className="apt-empty">No matches in this apartment</li>
+                          )}
+                          {roster.map((o) => (
                             <li key={o.contractId} className="chip-row">
                               <button
                                 type="button"

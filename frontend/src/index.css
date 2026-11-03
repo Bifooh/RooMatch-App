@@ -450,6 +450,32 @@ body {
 
 .board-filters label { min-width: 9rem; }
 
+.board-filters .filter-check {
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: end;
+  padding-bottom: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.board-filters .filter-check input {
+  width: auto;
+  margin: 0;
+}
+
+.clear-filters {
+  align-self: end;
+  margin-bottom: 0.05rem;
+}
+
+.clear-filters:disabled {
+  opacity: 0.45;
+}
+
 .board-quiet {
   display: flex;
   flex-wrap: wrap;
