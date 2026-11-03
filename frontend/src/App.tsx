@@ -1214,7 +1214,7 @@ export default function App() {
               )}
             </aside>
 
-            <section aria-label="Apartment boxes">
+            <section className="board-col" aria-label="Apartment boxes">
               {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
               <ul className="apt-board">
                 {filteredApartments.map((a) => {
