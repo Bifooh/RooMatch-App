@@ -175,101 +175,110 @@ body {
   margin-left: 0.15rem;
 }
 
-/* —— Dense list lens (same plan) —— */
-.plan-list {
-  display: grid;
-  gap: 0.85rem;
+/* —— List sheet lens (one student per row) —— */
+.plan-sheet-wrap {
   min-width: 0;
-}
-
-.plan-list-apts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0;
+  overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 6px;
   background: var(--panel);
-  overflow: hidden;
 }
 
-.plan-list-apt {
-  margin: 0;
-  padding: 0.4rem 0.55rem 0.45rem;
+.plan-sheet {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.plan-sheet th,
+.plan-sheet td {
+  padding: 0.22rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.plan-sheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--fill-low);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   border-bottom: 1px solid var(--line);
 }
 
-.plan-list-apt:last-child {
-  border-bottom: none;
-}
-
-.plan-list-apt-head {
-  display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
-  gap: 0.45rem 0.65rem;
-  align-items: baseline;
-  margin-bottom: 0.2rem;
-  font-size: 0.88rem;
-}
-
-.plan-list-apt-num {
-  font-variant-numeric: tabular-nums;
-}
-
-.plan-list-apt-plan {
-  color: var(--muted);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.plan-list-apt-fill {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.82rem;
-}
-
-.plan-list-empty {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.82rem;
-  padding-left: 0.1rem;
-}
-
-.plan-list-people {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.1rem;
-}
-
-.plan-list-person {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 0.35rem 0.45rem;
-  align-items: center;
-  padding: 0.12rem 0.15rem;
-  border-radius: 4px;
-}
-
-.plan-list-person.is-selected {
+.plan-sheet tbody tr.is-selected {
   background: var(--accent-soft);
 }
 
+.plan-sheet tbody tr.is-waiting td.sheet-apt {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.plan-sheet th:nth-child(1),
+.plan-sheet td.sheet-apt {
+  width: 5.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-sheet th:nth-child(2),
+.plan-sheet td.sheet-plan {
+  width: 6.5rem;
+}
+
+.plan-sheet th:nth-child(3),
+.plan-sheet td.sheet-fill {
+  width: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.plan-sheet th:nth-child(4),
+.plan-sheet td.sheet-name {
+  width: auto;
+}
+
+.plan-sheet th:nth-child(5),
+.plan-sheet td.sheet-status {
+  width: 7rem;
+}
+
+.plan-sheet th:nth-child(6),
+.plan-sheet td.sheet-lock {
+  width: 3.5rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-sheet th:nth-child(7),
+.plan-sheet td.sheet-info {
+  width: 2rem;
+  text-align: center;
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
+}
+
 .plan-list-name {
-  justify-self: start;
+  display: inline;
+  max-width: 100%;
   text-align: left;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 0.15rem 0.1rem !important;
-  font-size: 0.9rem !important;
+  padding: 0 !important;
+  margin: 0;
+  font-size: inherit !important;
   font-weight: 500 !important;
   color: var(--ink);
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -279,16 +288,16 @@ body {
   color: var(--accent) !important;
 }
 
-.plan-list-waiting {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
-  padding: 0.55rem 0.65rem 0.65rem;
-}
-
-.plan-list-waiting h3 {
-  margin: 0 0 0.4rem;
-  font-size: 0.95rem;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .waiting-scope {

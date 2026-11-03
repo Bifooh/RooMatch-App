@@ -329,6 +329,63 @@ export default function App() {
     })
   }, [workspace, query, planFilter, boardTab])
 
+  /** One student per row for the List sheet lens (same filters as Boxes). */
+  const sheetRows = useMemo(() => {
+    const rows: Array<{
+      key: string
+      kind: 'assigned' | 'waiting'
+      apartmentLabel: string
+      floorPlanCode: string
+      fill: string
+      contractId: number
+      apartmentId: number | null
+      firstName: string
+      lastName: string
+      tenantType: string
+      stayPreference: string | null
+      isLocked: boolean
+    }> = []
+
+    for (const a of filteredApartments) {
+      const fill = `${a.occupants.length}/${a.effectiveCapacity}`
+      for (const o of a.occupants) {
+        rows.push({
+          key: `a-${o.contractId}`,
+          kind: 'assigned',
+          apartmentLabel: a.apartmentNumber,
+          floorPlanCode: a.floorPlanCode,
+          fill,
+          contractId: o.contractId,
+          apartmentId: a.apartmentId,
+          firstName: o.firstName,
+          lastName: o.lastName,
+          tenantType: o.tenantType,
+          stayPreference: o.stayPreference,
+          isLocked: o.isLocked,
+        })
+      }
+    }
+
+    for (const u of filteredUnassigned) {
+      rows.push({
+        key: `w-${u.contractId}`,
+        kind: 'waiting',
+        apartmentLabel: 'Waiting',
+        floorPlanCode: u.floorPlanCode,
+        fill: '—',
+        contractId: u.contractId,
+        apartmentId: null,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        tenantType: u.tenantType,
+        stayPreference: u.stayPreference,
+        isLocked: false,
+      })
+    }
+
+    return rows
+  }, [filteredApartments, filteredUnassigned])
+
   const waitingOtherTab = useMemo(() => {
     if (!workspace) return 0
     const other: BoardTab = boardTab === 'women' ? 'men' : 'women'
@@ -1236,9 +1293,11 @@ export default function App() {
 
             <section
               className="board-col"
-              aria-label={boardLens === 'list' ? 'Apartment list' : 'Apartment boxes'}
+              aria-label={boardLens === 'list' ? 'Plan sheet' : 'Apartment boxes'}
             >
-              {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
+              {boardLens === 'boxes' && filteredApartments.length === 0 && (
+                <p className="empty">No apartments match.</p>
+              )}
               {boardLens === 'boxes' ? (
                 <ul className="apt-board">
                   {filteredApartments.map((a) => {
@@ -1330,100 +1389,74 @@ export default function App() {
                     )
                   })}
                 </ul>
+              ) : sheetRows.length === 0 ? (
+                <p className="empty">No students match on this tab (or filters hide them).</p>
               ) : (
-                <div className="plan-list">
-                  <ul className="plan-list-apts">
-                    {filteredApartments.map((a) => (
-                      <li key={a.apartmentId} className="plan-list-apt">
-                        <div className="plan-list-apt-head">
-                          <strong className="plan-list-apt-num">{a.apartmentNumber}</strong>
-                          <span className="plan-list-apt-plan">{a.floorPlanCode}</span>
-                          <span className="plan-list-apt-fill">
-                            {a.occupants.length}/{a.effectiveCapacity}
-                          </span>
-                        </div>
-                        {a.occupants.length === 0 ? (
-                          <p className="plan-list-empty">Empty</p>
-                        ) : (
-                          <ul className="plan-list-people">
-                            {a.occupants.map((o) => {
-                              const tag = statusTagMeta(o.tenantType, o.stayPreference)
-                              return (
-                                <li
-                                  key={o.contractId}
-                                  className={`plan-list-person ${selected?.contractId === o.contractId ? 'is-selected' : ''}`}
-                                >
-                                  <button
-                                    type="button"
-                                    className="plan-list-name"
-                                    onClick={() => selectAssigned(o.contractId, a.apartmentId)}
-                                  >
-                                    {o.firstName} {o.lastName}
-                                    {o.isLocked ? (
-                                      <span className="lock-mark"> · locked</span>
-                                    ) : null}
-                                  </button>
-                                  <span className={tag.className}>{tag.title}</span>
-                                  <button
-                                    type="button"
-                                    className="chip-info"
-                                    aria-label={`Details for ${o.firstName} ${o.lastName}`}
-                                    title="Details"
-                                    onClick={() => openDetails(o.contractId)}
-                                  >
-                                    i
-                                  </button>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  <section
-                    className="plan-list-waiting"
-                    aria-label={`Waiting · ${boardTab === 'women' ? 'Women' : 'Men'}`}
-                  >
-                    <h3>
-                      Waiting · {boardTab === 'women' ? 'Women' : 'Men'} (
-                      {filteredUnassigned.length})
-                    </h3>
-                    {filteredUnassigned.length === 0 ? (
-                      <p className="empty">No one waiting on this tab (or filters hide them).</p>
-                    ) : (
-                      <ul className="plan-list-people">
-                        {filteredUnassigned.map((u) => {
-                          const tag = statusTagMeta(u.tenantType, u.stayPreference)
-                          return (
-                            <li
-                              key={u.contractId}
-                              className={`plan-list-person ${selected?.contractId === u.contractId ? 'is-selected' : ''}`}
-                            >
+                <div className="plan-sheet-wrap">
+                  <table className="plan-sheet">
+                    <thead>
+                      <tr>
+                        <th scope="col">Apartment</th>
+                        <th scope="col">Floor plan</th>
+                        <th scope="col">Fill</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Locked</th>
+                        <th scope="col">
+                          <span className="visually-hidden">Details</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sheetRows.map((row) => {
+                        const tag = statusTagMeta(row.tenantType, row.stayPreference)
+                        const isSelected = selected?.contractId === row.contractId
+                        return (
+                          <tr
+                            key={row.key}
+                            className={`${row.kind === 'waiting' ? 'is-waiting' : ''} ${isSelected ? 'is-selected' : ''}`}
+                          >
+                            <td className="sheet-apt">{row.apartmentLabel}</td>
+                            <td className="sheet-plan">{row.floorPlanCode}</td>
+                            <td className="sheet-fill">{row.fill}</td>
+                            <td className="sheet-name">
                               <button
                                 type="button"
                                 className="plan-list-name"
-                                onClick={() => selectUnassigned(u)}
+                                onClick={() => {
+                                  if (row.kind === 'assigned' && row.apartmentId != null) {
+                                    selectAssigned(row.contractId, row.apartmentId)
+                                  } else {
+                                    const u = filteredUnassigned.find(
+                                      (x) => x.contractId === row.contractId,
+                                    )
+                                    if (u) selectUnassigned(u)
+                                  }
+                                }}
                               >
-                                {u.firstName} {u.lastName}
-                                <span className="muted"> · {u.floorPlanCode}</span>
+                                {row.firstName} {row.lastName}
                               </button>
+                            </td>
+                            <td className="sheet-status">
                               <span className={tag.className}>{tag.title}</span>
+                            </td>
+                            <td className="sheet-lock">{row.isLocked ? 'Yes' : '—'}</td>
+                            <td className="sheet-info">
                               <button
                                 type="button"
                                 className="chip-info"
-                                aria-label={`Details for ${u.firstName} ${u.lastName}`}
+                                aria-label={`Details for ${row.firstName} ${row.lastName}`}
                                 title="Details"
-                                onClick={() => openDetails(u.contractId)}
+                                onClick={() => openDetails(row.contractId)}
                               >
                                 i
                               </button>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </section>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>
