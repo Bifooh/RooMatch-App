@@ -40,6 +40,10 @@ export type AssignedTenant = {
   lockedBy: string | null
   lockedAt: string | null
   assignmentSource: string | null
+  tenantType: string
+  stayPreference: string | null
+  floorPlanId: number
+  floorPlanCode: string
 }
 
 export type ApartmentRow = {
@@ -63,6 +67,7 @@ export type UnassignedTenant = {
   floorPlanCode: string
   floorPlanId: number
   tenantType: string
+  stayPreference: string | null
 }
 
 export type RoommateRequest = {
@@ -75,13 +80,23 @@ export type RoommateRequest = {
   exclusionReason: string | null
 }
 
+export type Restriction = {
+  restrictionId: number
+  contractId: number
+  restrictionType: string
+  apartmentId: number | null
+  otherTenantId: number | null
+  value: string | null
+  description: string
+}
+
 export type Workspace = {
   draft: DraftInfo
   term: TermInfo
   apartments: ApartmentRow[]
   unassigned: UnassignedTenant[]
   roommateRequests: RoommateRequest[]
-  restrictions: unknown[]
+  restrictions: Restriction[]
   issues: ValidationIssue[]
   validationLimitations: string[]
 }

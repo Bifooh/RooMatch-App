@@ -190,7 +190,8 @@ public sealed class AssignmentService
                         var c = state.Contracts[asg.ContractId];
                         return new AssignedTenantInfo(
                             c.ContractId, c.TenantId, c.TenantCode, c.FirstName, c.LastName,
-                            asg.AssignmentId, asg.IsLocked, asg.LockedBy, asg.LockedAt, asg.Source);
+                            asg.AssignmentId, asg.IsLocked, asg.LockedBy, asg.LockedAt, asg.Source,
+                            c.TenantType, c.StayPreference, c.FloorPlanId, c.FloorPlanCode);
                     })
                     .OrderBy(t => t.LastName).ThenBy(t => t.FirstName).ThenBy(t => t.TenantCode)
                     .ToList();
@@ -206,7 +207,7 @@ public sealed class AssignmentService
             .OrderBy(c => c.LastName).ThenBy(c => c.FirstName).ThenBy(c => c.TenantCode)
             .Select(c => new UnassignedTenantInfo(
                 c.ContractId, c.TenantId, c.TenantCode, c.FirstName, c.LastName,
-                c.FloorPlanCode, c.FloorPlanId, c.TenantType))
+                c.FloorPlanCode, c.FloorPlanId, c.TenantType, c.StayPreference))
             .ToList();
 
         var requests = state.RoommateRequests
@@ -700,7 +701,8 @@ public sealed class AssignmentService
         await using (var cmd = new MySqlCommand(
                          """
                          SELECT c.contract_id, c.tenant_id, t.tenant_code, t.first_name, t.last_name,
-                                c.term_id, c.floor_plan_id, fp.code AS floor_plan_code, c.tenant_type
+                                c.term_id, c.floor_plan_id, fp.code AS floor_plan_code, c.tenant_type,
+                                c.stay_preference
                          FROM contracts c
                          JOIN tenants t ON t.tenant_id = c.tenant_id
                          JOIN floor_plans fp ON fp.floor_plan_id = c.floor_plan_id
@@ -711,6 +713,7 @@ public sealed class AssignmentService
             await using var r = await cmd.ExecuteReaderAsync(ct);
             while (await r.ReadAsync(ct))
             {
+                var stayOrd = r.GetOrdinal("stay_preference");
                 var c = new ContractState(
                     r.GetUInt32("contract_id"),
                     r.GetUInt32("tenant_id"),
@@ -720,7 +723,8 @@ public sealed class AssignmentService
                     r.GetUInt32("term_id"),
                     r.GetUInt32("floor_plan_id"),
                     r.GetString("floor_plan_code"),
-                    r.GetString("tenant_type"));
+                    r.GetString("tenant_type"),
+                    r.IsDBNull(stayOrd) ? null : r.GetString(stayOrd));
                 state.Contracts[c.ContractId] = c;
             }
         }
