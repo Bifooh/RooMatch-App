@@ -830,12 +830,8 @@ export default function App() {
 
   return (
     <main className="app">
-      <header className="hero">
+      <header className="hero hero-compact" aria-label="Roomatch plan setup">
         <h1 className="hero-brand">Roomatch</h1>
-        <p className="hero-lede">
-          Pick a term, make a first plan automatically, then tweak apartments as boxes of students.
-          Fictional Lodge data only — not for real student records.
-        </p>
         <div className="hero-actions">
           <label>
             Term
@@ -866,9 +862,6 @@ export default function App() {
                 : 'Make another plan'}
           </button>
         </div>
-        <p className="hero-hint">
-          Places people by floor plan and roommate pairs. You can move anyone afterward.
-        </p>
       </header>
 
       {loading && <p role="status">Loading…</p>}
@@ -968,22 +961,24 @@ export default function App() {
                   ))}
                 </select>
               </label>
-              <button
-                type="button"
-                className="legend-toggle"
-                onClick={() => setShowColorGuide((v) => !v)}
-                aria-expanded={showColorGuide}
-              >
-                {showColorGuide ? 'Hide color guide' : 'Color guide'}
-              </button>
-              <button
-                type="button"
-                className="legend-toggle"
-                onClick={() => setShowFloorPlanCodes(true)}
-                aria-haspopup="dialog"
-              >
-                Floor plan codes
-              </button>
+              <div className="board-quiet" role="group" aria-label="References">
+                <button
+                  type="button"
+                  className="quiet-control"
+                  onClick={() => setShowColorGuide((v) => !v)}
+                  aria-expanded={showColorGuide}
+                >
+                  {showColorGuide ? 'Hide colors' : 'Colors'}
+                </button>
+                <button
+                  type="button"
+                  className="quiet-control"
+                  onClick={() => setShowFloorPlanCodes(true)}
+                  aria-haspopup="dialog"
+                >
+                  Floor plans
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1024,12 +1019,10 @@ export default function App() {
 
           <div className="workspace-layout">
             <aside className="side-col side-left" aria-label="Adjust column">
-              <section className="panel" aria-label="Adjust selection">
+              <section className="panel adjust-inspector" aria-label="Adjust selection">
                 <h2>Adjust</h2>
                 {!selected && (
-                  <p className="muted">
-                    Drag a student onto an apartment box, or click then use Move below.
-                  </p>
+                  <p className="muted move-hint">Drag a student onto a highlighted apartment.</p>
                 )}
                 {selected && (
                   <>
@@ -1049,11 +1042,10 @@ export default function App() {
                       </button>
                     </p>
                     <p className="muted move-hint">
-                      Same floor plan only
+                      Drag to move
                       {contractPlan(selected.contractId)
-                        ? ` (${contractPlan(selected.contractId)!.floorPlanCode})`
+                        ? ` · ${contractPlan(selected.contractId)!.floorPlanCode}`
                         : ''}
-                      . Drag onto a highlighted box, or pick one here.
                     </p>
                     <div className="action-row">
                       <label>
@@ -1065,7 +1057,7 @@ export default function App() {
                           }
                           disabled={!editable || busy}
                         >
-                          <option value="">Choose same-plan apartment…</option>
+                          <option value="">Same-plan apartment…</option>
                           {compatibleApartments.length === 0 && (
                             <option value="" disabled>
                               No apartments for this floor plan
@@ -1127,66 +1119,72 @@ export default function App() {
                       </button>
                     </div>
                     {selected.kind === 'assigned' && (
-                      <div className="action-row">
-                        <label>
-                          Swap with
-                          <select
-                            value={swapTarget}
-                            onChange={(e) =>
-                              setSwapTarget(e.target.value ? Number(e.target.value) : '')
+                      <details className="adjust-more">
+                        <summary>More (swap, lock)</summary>
+                        <p className="muted move-hint">
+                          Same floor plan only. Highlighted boxes accept a drop.
+                        </p>
+                        <div className="action-row">
+                          <label>
+                            Swap with
+                            <select
+                              value={swapTarget}
+                              onChange={(e) =>
+                                setSwapTarget(e.target.value ? Number(e.target.value) : '')
+                              }
+                              disabled={!editable || busy}
+                            >
+                              <option value="">Choose…</option>
+                              {assignedOptions.map((o) => (
+                                <option key={o.contractId} value={o.contractId}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            disabled={!editable || busy || swapTarget === ''}
+                            onClick={() =>
+                              runMutation(() =>
+                                swapTenants(
+                                  draftId as number,
+                                  selected.contractId,
+                                  swapTarget as number,
+                                  operatorName(),
+                                  changeReason.trim() || null,
+                                ),
+                              )
                             }
-                            disabled={!editable || busy}
                           >
-                            <option value="">Choose…</option>
-                            {assignedOptions.map((o) => (
-                              <option key={o.contractId} value={o.contractId}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <button
-                          type="button"
-                          disabled={!editable || busy || swapTarget === ''}
-                          onClick={() =>
-                            runMutation(() =>
-                              swapTenants(
-                                draftId as number,
-                                selected.contractId,
-                                swapTarget as number,
-                                operatorName(),
-                                changeReason.trim() || null,
-                              ),
-                            )
-                          }
-                        >
-                          Swap
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!editable || busy}
-                          onClick={() => {
-                            const apt = workspace.apartments.find(
-                              (a) => a.apartmentId === selected.apartmentId,
-                            )
-                            const occ = apt?.occupants.find(
-                              (o) => o.contractId === selected.contractId,
-                            )
-                            const locked = !occ?.isLocked
-                            return runMutation(() =>
-                              setLock(
-                                draftId as number,
-                                selected.contractId,
-                                locked,
-                                operatorName(),
-                                changeReason.trim() || null,
-                              ),
-                            )
-                          }}
-                        >
-                          Toggle lock
-                        </button>
-                      </div>
+                            Swap
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!editable || busy}
+                            onClick={() => {
+                              const apt = workspace.apartments.find(
+                                (a) => a.apartmentId === selected.apartmentId,
+                              )
+                              const occ = apt?.occupants.find(
+                                (o) => o.contractId === selected.contractId,
+                              )
+                              const locked = !occ?.isLocked
+                              return runMutation(() =>
+                                setLock(
+                                  draftId as number,
+                                  selected.contractId,
+                                  locked,
+                                  operatorName(),
+                                  changeReason.trim() || null,
+                                ),
+                              )
+                            }}
+                          >
+                            Toggle lock
+                          </button>
+                        </div>
+                      </details>
                     )}
                   </>
                 )}
