@@ -36,6 +36,7 @@ import type {
 } from './types'
 
 type BoardTab = 'women' | 'men'
+type BoardLens = 'boxes' | 'list'
 
 type Selected =
   | { kind: 'assigned'; contractId: number; apartmentId: number }
@@ -185,6 +186,7 @@ export default function App() {
   const [showColorGuide, setShowColorGuide] = useState(false)
   const [showFloorPlanCodes, setShowFloorPlanCodes] = useState(false)
   const [boardTab, setBoardTab] = useState<BoardTab>('women')
+  const [boardLens, setBoardLens] = useState<BoardLens>('boxes')
   const [detailsContractId, setDetailsContractId] = useState<number | null>(null)
   const [dragContractId, setDragContractId] = useState<number | null>(null)
   const [dropHover, setDropHover] = useState<number | 'waiting' | null>(null)
@@ -940,6 +942,26 @@ export default function App() {
                   Men
                 </button>
               </div>
+              <div className="board-tabs lens-tabs" role="tablist" aria-label="Board view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={boardLens === 'boxes'}
+                  className={boardLens === 'boxes' ? 'tab active' : 'tab'}
+                  onClick={() => setBoardLens('boxes')}
+                >
+                  Boxes
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={boardLens === 'list'}
+                  className={boardLens === 'list' ? 'tab active' : 'tab'}
+                  onClick={() => setBoardLens('list')}
+                >
+                  List
+                </button>
+              </div>
             </div>
             <div className="board-filters">
               <label>
@@ -1212,99 +1234,198 @@ export default function App() {
               )}
             </aside>
 
-            <section className="board-col" aria-label="Apartment boxes">
+            <section
+              className="board-col"
+              aria-label={boardLens === 'list' ? 'Apartment list' : 'Apartment boxes'}
+            >
               {filteredApartments.length === 0 && <p className="empty">No apartments match.</p>}
-              <ul className="apt-board">
-                {filteredApartments.map((a) => {
-                  const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
-                  const bldg = buildingClass(a.building)
-                  const dragging = dragContractId != null
-                  const valid =
-                    dragging && dragContractId != null
-                      ? apartmentIsDropValid(a.apartmentId, dragContractId)
-                      : false
-                  const samePlan =
-                    dragging && dragPlan != null && a.floorPlanId === dragPlan.floorPlanId
-                  const dropClass = dragging
-                    ? valid
-                      ? 'drop-valid'
-                      : samePlan
-                        ? 'drop-full'
-                        : 'drop-invalid'
-                    : ''
-                  return (
-                    <li
-                      key={a.apartmentId}
-                      className={`apt-box ${bldg} ${fill} ${dropClass} ${dropHover === a.apartmentId ? 'drop-hover' : ''}`}
-                      onDragOver={(e) => {
-                        const draggingId = dragContractIdRef.current ?? dragContractId
-                        if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
-                        e.preventDefault()
-                        const id = draggingId
-                        const ok = id != null && apartmentIsDropValid(a.apartmentId, id)
-                        e.dataTransfer.dropEffect = ok ? 'move' : 'none'
-                        setDropHover(a.apartmentId)
-                      }}
-                      onDragLeave={() => {
-                        setDropHover((h) => (h === a.apartmentId ? null : h))
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        dropOnApartment(a.apartmentId, e)
-                      }}
-                    >
-                      <div className="apt-box-head">
-                        <strong>{a.apartmentNumber}</strong>
-                        <span className="apt-box-meta">
-                          {a.occupants.length}/{a.effectiveCapacity}
-                        </span>
-                      </div>
-                      <div className="apt-box-meta">
-                        {a.floorPlanCode} · fl {a.floor}
-                      </div>
-                      <ul className="occ-chips">
-                        {a.occupants.length === 0 && (
-                          <li className="apt-empty">Empty</li>
+              {boardLens === 'boxes' ? (
+                <ul className="apt-board">
+                  {filteredApartments.map((a) => {
+                    const fill = aptFillClass(a.occupants.length, a.effectiveCapacity)
+                    const bldg = buildingClass(a.building)
+                    const dragging = dragContractId != null
+                    const valid =
+                      dragging && dragContractId != null
+                        ? apartmentIsDropValid(a.apartmentId, dragContractId)
+                        : false
+                    const samePlan =
+                      dragging && dragPlan != null && a.floorPlanId === dragPlan.floorPlanId
+                    const dropClass = dragging
+                      ? valid
+                        ? 'drop-valid'
+                        : samePlan
+                          ? 'drop-full'
+                          : 'drop-invalid'
+                      : ''
+                    return (
+                      <li
+                        key={a.apartmentId}
+                        className={`apt-box ${bldg} ${fill} ${dropClass} ${dropHover === a.apartmentId ? 'drop-hover' : ''}`}
+                        onDragOver={(e) => {
+                          const draggingId = dragContractIdRef.current ?? dragContractId
+                          if (draggingId == null && !e.dataTransfer.types.includes('text/plain'))
+                            return
+                          e.preventDefault()
+                          const id = draggingId
+                          const ok = id != null && apartmentIsDropValid(a.apartmentId, id)
+                          e.dataTransfer.dropEffect = ok ? 'move' : 'none'
+                          setDropHover(a.apartmentId)
+                        }}
+                        onDragLeave={() => {
+                          setDropHover((h) => (h === a.apartmentId ? null : h))
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+                          dropOnApartment(a.apartmentId, e)
+                        }}
+                      >
+                        <div className="apt-box-head">
+                          <strong>{a.apartmentNumber}</strong>
+                          <span className="apt-box-meta">
+                            {a.occupants.length}/{a.effectiveCapacity}
+                          </span>
+                        </div>
+                        <div className="apt-box-meta">
+                          {a.floorPlanCode} · fl {a.floor}
+                        </div>
+                        <ul className="occ-chips">
+                          {a.occupants.length === 0 && <li className="apt-empty">Empty</li>}
+                          {a.occupants.map((o) => (
+                            <li key={o.contractId} className="chip-row">
+                              <button
+                                type="button"
+                                draggable={editable && !busy}
+                                className={chipClassName(
+                                  selected?.contractId === o.contractId,
+                                  o.tenantType,
+                                  o.stayPreference,
+                                )}
+                                onDragStart={(e) => {
+                                  dragMovedRef.current = true
+                                  selectAssigned(o.contractId, a.apartmentId)
+                                  beginDrag(o.contractId, e)
+                                }}
+                                onDragEnd={endDrag}
+                                onClick={() =>
+                                  onNameClick(() => selectAssigned(o.contractId, a.apartmentId))
+                                }
+                              >
+                                {o.firstName} {o.lastName}
+                                {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
+                              </button>
+                              <button
+                                type="button"
+                                className="chip-info"
+                                aria-label={`Details for ${o.firstName} ${o.lastName}`}
+                                title="Details"
+                                onClick={() => openDetails(o.contractId)}
+                              >
+                                i
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <div className="plan-list">
+                  <ul className="plan-list-apts">
+                    {filteredApartments.map((a) => (
+                      <li key={a.apartmentId} className="plan-list-apt">
+                        <div className="plan-list-apt-head">
+                          <strong className="plan-list-apt-num">{a.apartmentNumber}</strong>
+                          <span className="plan-list-apt-plan">{a.floorPlanCode}</span>
+                          <span className="plan-list-apt-fill">
+                            {a.occupants.length}/{a.effectiveCapacity}
+                          </span>
+                        </div>
+                        {a.occupants.length === 0 ? (
+                          <p className="plan-list-empty">Empty</p>
+                        ) : (
+                          <ul className="plan-list-people">
+                            {a.occupants.map((o) => {
+                              const tag = statusTagMeta(o.tenantType, o.stayPreference)
+                              return (
+                                <li
+                                  key={o.contractId}
+                                  className={`plan-list-person ${selected?.contractId === o.contractId ? 'is-selected' : ''}`}
+                                >
+                                  <button
+                                    type="button"
+                                    className="plan-list-name"
+                                    onClick={() => selectAssigned(o.contractId, a.apartmentId)}
+                                  >
+                                    {o.firstName} {o.lastName}
+                                    {o.isLocked ? (
+                                      <span className="lock-mark"> · locked</span>
+                                    ) : null}
+                                  </button>
+                                  <span className={tag.className}>{tag.title}</span>
+                                  <button
+                                    type="button"
+                                    className="chip-info"
+                                    aria-label={`Details for ${o.firstName} ${o.lastName}`}
+                                    title="Details"
+                                    onClick={() => openDetails(o.contractId)}
+                                  >
+                                    i
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
                         )}
-                        {a.occupants.map((o) => (
-                          <li key={o.contractId} className="chip-row">
-                            <button
-                              type="button"
-                              draggable={editable && !busy}
-                              className={chipClassName(
-                                selected?.contractId === o.contractId,
-                                o.tenantType,
-                                o.stayPreference,
-                              )}
-                              onDragStart={(e) => {
-                                dragMovedRef.current = true
-                                selectAssigned(o.contractId, a.apartmentId)
-                                beginDrag(o.contractId, e)
-                              }}
-                              onDragEnd={endDrag}
-                              onClick={() =>
-                                onNameClick(() => selectAssigned(o.contractId, a.apartmentId))
-                              }
+                      </li>
+                    ))}
+                  </ul>
+                  <section
+                    className="plan-list-waiting"
+                    aria-label={`Waiting · ${boardTab === 'women' ? 'Women' : 'Men'}`}
+                  >
+                    <h3>
+                      Waiting · {boardTab === 'women' ? 'Women' : 'Men'} (
+                      {filteredUnassigned.length})
+                    </h3>
+                    {filteredUnassigned.length === 0 ? (
+                      <p className="empty">No one waiting on this tab (or filters hide them).</p>
+                    ) : (
+                      <ul className="plan-list-people">
+                        {filteredUnassigned.map((u) => {
+                          const tag = statusTagMeta(u.tenantType, u.stayPreference)
+                          return (
+                            <li
+                              key={u.contractId}
+                              className={`plan-list-person ${selected?.contractId === u.contractId ? 'is-selected' : ''}`}
                             >
-                              {o.firstName} {o.lastName}
-                              {o.isLocked ? <span className="lock-mark"> · locked</span> : null}
-                            </button>
-                            <button
-                              type="button"
-                              className="chip-info"
-                              aria-label={`Details for ${o.firstName} ${o.lastName}`}
-                              title="Details"
-                              onClick={() => openDetails(o.contractId)}
-                            >
-                              i
-                            </button>
-                          </li>
-                        ))}
+                              <button
+                                type="button"
+                                className="plan-list-name"
+                                onClick={() => selectUnassigned(u)}
+                              >
+                                {u.firstName} {u.lastName}
+                                <span className="muted"> · {u.floorPlanCode}</span>
+                              </button>
+                              <span className={tag.className}>{tag.title}</span>
+                              <button
+                                type="button"
+                                className="chip-info"
+                                aria-label={`Details for ${u.firstName} ${u.lastName}`}
+                                title="Details"
+                                onClick={() => openDetails(u.contractId)}
+                              >
+                                i
+                              </button>
+                            </li>
+                          )
+                        })}
                       </ul>
-                    </li>
-                  )
-                })}
-              </ul>
+                    )}
+                  </section>
+                </div>
+              )}
             </section>
 
 
