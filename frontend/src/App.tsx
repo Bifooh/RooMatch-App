@@ -1101,7 +1101,7 @@ export default function App() {
               </div>
             </div>
             <div className="board-filters" aria-label="Board filters">
-              <label>
+              <label className="filter-find">
                 Find
                 <input
                   value={query}
@@ -1109,41 +1109,60 @@ export default function App() {
                   placeholder="Name or apartment"
                 />
               </label>
-              <label>
-                Floor plan
-                <select value={planFilter} onChange={(e) => setPlanFilter(e.target.value)}>
-                  <option value="">All on this tab</option>
-                  {plans.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="filter-check">
-                <input
-                  type="checkbox"
-                  checked={renewingOnly}
-                  onChange={(e) => setRenewingOnly(e.target.checked)}
-                />
-                Renewing only
-              </label>
-              <label className="filter-check">
-                <input
-                  type="checkbox"
-                  checked={lockedOnly}
-                  onChange={(e) => setLockedOnly(e.target.checked)}
-                />
-                Locked only
-              </label>
-              <button
-                type="button"
-                className="clear-filters"
-                onClick={clearBoardFilters}
-                disabled={!filtersActive}
-              >
-                Clear filters
-              </button>
+              <div className="filter-chip-bar" role="group" aria-label="Plan filters">
+                <button
+                  type="button"
+                  className={`filter-chip ${renewingOnly ? 'is-pressed' : ''}`}
+                  aria-pressed={renewingOnly}
+                  onClick={() => setRenewingOnly((v) => !v)}
+                >
+                  <span className="filter-chip-mark" aria-hidden="true">
+                    {renewingOnly ? '✓' : ''}
+                  </span>
+                  Renewing only
+                </button>
+                <button
+                  type="button"
+                  className={`filter-chip ${lockedOnly ? 'is-pressed' : ''}`}
+                  aria-pressed={lockedOnly}
+                  onClick={() => setLockedOnly((v) => !v)}
+                >
+                  <span className="filter-chip-mark" aria-hidden="true">
+                    {lockedOnly ? '✓' : ''}
+                  </span>
+                  Locked only
+                </button>
+                <label
+                  className={`filter-chip filter-chip-select ${planFilter ? 'is-pressed' : ''}`}
+                >
+                  <span className="filter-chip-mark" aria-hidden="true">
+                    {planFilter ? '✓' : ''}
+                  </span>
+                  <span className="filter-chip-select-label">Floor plan</span>
+                  <select
+                    value={planFilter}
+                    onChange={(e) => setPlanFilter(e.target.value)}
+                    aria-label="Floor plan filter"
+                  >
+                    <option value="">All on this tab</option>
+                    {plans.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {filtersActive && (
+                  <>
+                    <span className="filter-showing" aria-live="polite">
+                      Showing {sheetRows.length}
+                    </span>
+                    <button type="button" className="filter-clear" onClick={clearBoardFilters}>
+                      Clear
+                    </button>
+                  </>
+                )}
+              </div>
               <div className="board-quiet" role="group" aria-label="References">
                 <button
                   type="button"
