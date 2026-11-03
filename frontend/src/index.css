@@ -727,7 +727,36 @@ code {
 
 h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
 
-/* —— Student details modal —— */
+/* —— Student details side peek (right rail) —— */
+.student-peek {
+  overflow-wrap: anywhere;
+}
+
+.peek-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.peek-head h2 {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.peek-return {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+}
+
+.student-peek .detail-grid {
+  grid-template-columns: 1fr;
+}
+
+/* —— Center modals (floor-plan codes, etc.) —— */
 .modal-backdrop {
   position: fixed;
   inset: 0;

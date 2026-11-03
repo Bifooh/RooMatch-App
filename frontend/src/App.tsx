@@ -136,7 +136,7 @@ function labelStayPreference(stay: string | null | undefined) {
   return stay
 }
 
-/** Short colored tag matching chip colors (for Adjust + details modal). */
+/** Short colored tag matching chip colors (for Adjust + details peek). */
 function statusTagMeta(tenantType: string, stayPreference: string | null | undefined) {
   if (tenantType === 'renewing') {
     if (stayPreference === 'stay') {
@@ -1310,74 +1310,190 @@ export default function App() {
             </section>
 
 
-            <aside className="side-col side-right" aria-label="Waiting column">
-              <section
-                className={`panel waiting-drop ${dragContractId != null ? 'drop-unassign' : ''} ${dropHover === 'waiting' ? 'drop-hover' : ''}`}
-                aria-label="Waiting list"
-                onDragOver={(e) => {
-                  const draggingId = dragContractIdRef.current ?? dragContractId
-                  if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
-                  const id = draggingId
-                  if (id != null && workspace.unassigned.some((u) => u.contractId === id)) return
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  setDropHover('waiting')
-                }}
-                onDragLeave={() => setDropHover((h) => (h === 'waiting' ? null : h))}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  dropUnassign(e)
-                }}
-              >
-                <h2>
-                  Waiting · {boardTab === 'women' ? 'Women' : 'Men'} ({filteredUnassigned.length})
-                </h2>
-                <p className="muted waiting-scope">
-                  Drag here to unassign · same floor plan on this tab
-                  {waitingOtherTab > 0
-                    ? ` · ${waitingOtherTab} waiting on the other tab`
-                    : ''}
-                  .
-                </p>
-                {filteredUnassigned.length === 0 && (
-                  <p className="empty">No one waiting on this tab (or filters hide them).</p>
-                )}
-                <ul className="unassigned-list">
-                  {filteredUnassigned.map((u) => (
-                    <li key={u.contractId} className="chip-row">
-                      <button
-                        type="button"
-                        draggable={editable && !busy}
-                        className={chipClassName(
-                          selected?.contractId === u.contractId,
-                          u.tenantType,
-                          u.stayPreference,
+            <aside
+              className="side-col side-right"
+              aria-label={studentDetails ? 'Student details' : 'Waiting column'}
+            >
+              {studentDetails ? (
+                <section
+                  className="panel student-peek"
+                  role="dialog"
+                  aria-modal="false"
+                  aria-labelledby="student-details-title"
+                >
+                  <div className="peek-head">
+                    <div className="modal-title-block">
+                      <h2 id="student-details-title">
+                        {studentDetails.firstName} {studentDetails.lastName}
+                      </h2>
+                      {detailsStatusTag && (
+                        <span className={detailsStatusTag.className}>{detailsStatusTag.title}</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="modal-close"
+                      onClick={closeDetails}
+                      autoFocus
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <p className="muted peek-return">Close returns to Waiting.</p>
+                  <dl className="detail-grid">
+                    <div>
+                      <dt>Tenant code</dt>
+                      <dd>{studentDetails.tenantCode}</dd>
+                    </div>
+                    <div>
+                      <dt>Contract type</dt>
+                      <dd>{labelTenantType(studentDetails.tenantType)}</dd>
+                    </div>
+                    <div>
+                      <dt>Stay preference</dt>
+                      <dd>{labelStayPreference(studentDetails.stayPreference) ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Floor plan</dt>
+                      <dd>{studentDetails.floorPlanCode || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Current apartment</dt>
+                      <dd>
+                        {studentDetails.placed
+                          ? studentDetails.apartmentNumber ?? '—'
+                          : 'Unassigned (waiting)'}
+                      </dd>
+                    </div>
+                    {studentDetails.placed && (
+                      <>
+                        <div>
+                          <dt>Lock</dt>
+                          <dd>
+                            {studentDetails.isLocked
+                              ? `Locked${studentDetails.lockedBy ? ` by ${studentDetails.lockedBy}` : ''}`
+                              : 'Not locked'}
+                          </dd>
+                        </div>
+                        {studentDetails.assignmentSource && (
+                          <div>
+                            <dt>Assignment source</dt>
+                            <dd>{studentDetails.assignmentSource}</dd>
+                          </div>
                         )}
-                        onDragStart={(e) => {
-                          dragMovedRef.current = true
-                          selectUnassigned(u)
-                          beginDrag(u.contractId, e)
-                        }}
-                        onDragEnd={endDrag}
-                        onClick={() => onNameClick(() => selectUnassigned(u))}
-                      >
-                        {u.firstName} {u.lastName}
-                        <span className="muted"> · {u.floorPlanCode}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="chip-info"
-                        aria-label={`Details for ${u.firstName} ${u.lastName}`}
-                        title="Details"
-                        onClick={() => openDetails(u.contractId)}
-                      >
-                        i
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+                      </>
+                    )}
+                  </dl>
 
+                  <section className="modal-section" aria-label="Roommate requests">
+                    <h3>Roommate request wording</h3>
+                    {studentDetails.requests.length === 0 ? (
+                      <p className="muted">None on file for this contract.</p>
+                    ) : (
+                      <ul className="modal-list">
+                        {studentDetails.requests.map((r) => (
+                          <li key={r.requestId}>
+                            <span className="mono">“{r.rawText}”</span>
+                            <span className="muted">
+                              {' '}
+                              · {r.status}
+                              {r.exclusionReason ? ` · ${r.exclusionReason}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+
+                  <section className="modal-section" aria-label="Restrictions">
+                    <h3>Restrictions</h3>
+                    {studentDetails.restrictions.length === 0 ? (
+                      <p className="muted">None on file for this contract.</p>
+                    ) : (
+                      <ul className="modal-list">
+                        {studentDetails.restrictions.map((r) => (
+                          <li key={r.restrictionId}>
+                            <strong>{r.restrictionType}</strong>
+                            {r.value ? ` = ${r.value}` : ''}
+                            {r.description ? ` — ${r.description}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+
+                  <p className="muted modal-hint">
+                    Escape or Close returns Waiting. Board stays open — use Adjust or drag to move.
+                  </p>
+                </section>
+              ) : (
+                <section
+                  className={`panel waiting-drop ${dragContractId != null ? 'drop-unassign' : ''} ${dropHover === 'waiting' ? 'drop-hover' : ''}`}
+                  aria-label="Waiting list"
+                  onDragOver={(e) => {
+                    const draggingId = dragContractIdRef.current ?? dragContractId
+                    if (draggingId == null && !e.dataTransfer.types.includes('text/plain')) return
+                    const id = draggingId
+                    if (id != null && workspace.unassigned.some((u) => u.contractId === id)) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    setDropHover('waiting')
+                  }}
+                  onDragLeave={() => setDropHover((h) => (h === 'waiting' ? null : h))}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    dropUnassign(e)
+                  }}
+                >
+                  <h2>
+                    Waiting · {boardTab === 'women' ? 'Women' : 'Men'} ({filteredUnassigned.length})
+                  </h2>
+                  <p className="muted waiting-scope">
+                    Drag here to unassign · same floor plan on this tab
+                    {waitingOtherTab > 0
+                      ? ` · ${waitingOtherTab} waiting on the other tab`
+                      : ''}
+                    .
+                  </p>
+                  {filteredUnassigned.length === 0 && (
+                    <p className="empty">No one waiting on this tab (or filters hide them).</p>
+                  )}
+                  <ul className="unassigned-list">
+                    {filteredUnassigned.map((u) => (
+                      <li key={u.contractId} className="chip-row">
+                        <button
+                          type="button"
+                          draggable={editable && !busy}
+                          className={chipClassName(
+                            selected?.contractId === u.contractId,
+                            u.tenantType,
+                            u.stayPreference,
+                          )}
+                          onDragStart={(e) => {
+                            dragMovedRef.current = true
+                            selectUnassigned(u)
+                            beginDrag(u.contractId, e)
+                          }}
+                          onDragEnd={endDrag}
+                          onClick={() => onNameClick(() => selectUnassigned(u))}
+                        >
+                          {u.firstName} {u.lastName}
+                          <span className="muted"> · {u.floorPlanCode}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="chip-info"
+                          aria-label={`Details for ${u.firstName} ${u.lastName}`}
+                          title="Details"
+                          onClick={() => openDetails(u.contractId)}
+                        >
+                          i
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </aside>
           </div>
         </>
@@ -1779,122 +1895,6 @@ export default function App() {
         </div>
       )}
 
-      {studentDetails && (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeDetails()
-          }}
-        >
-          <div
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="student-details-title"
-          >
-            <div className="modal-head">
-              <div className="modal-title-block">
-                <h2 id="student-details-title">
-                  {studentDetails.firstName} {studentDetails.lastName}
-                </h2>
-                {detailsStatusTag && (
-                  <span className={detailsStatusTag.className}>{detailsStatusTag.title}</span>
-                )}
-              </div>
-              <button type="button" className="modal-close" onClick={closeDetails} autoFocus>
-                Close
-              </button>
-            </div>
-            <dl className="detail-grid">
-              <div>
-                <dt>Tenant code</dt>
-                <dd>{studentDetails.tenantCode}</dd>
-              </div>
-              <div>
-                <dt>Contract type</dt>
-                <dd>{labelTenantType(studentDetails.tenantType)}</dd>
-              </div>
-              <div>
-                <dt>Stay preference</dt>
-                <dd>{labelStayPreference(studentDetails.stayPreference) ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Floor plan</dt>
-                <dd>{studentDetails.floorPlanCode || '—'}</dd>
-              </div>
-              <div>
-                <dt>Current apartment</dt>
-                <dd>
-                  {studentDetails.placed
-                    ? studentDetails.apartmentNumber ?? '—'
-                    : 'Unassigned (waiting)'}
-                </dd>
-              </div>
-              {studentDetails.placed && (
-                <>
-                  <div>
-                    <dt>Lock</dt>
-                    <dd>
-                      {studentDetails.isLocked
-                        ? `Locked${studentDetails.lockedBy ? ` by ${studentDetails.lockedBy}` : ''}`
-                        : 'Not locked'}
-                    </dd>
-                  </div>
-                  {studentDetails.assignmentSource && (
-                    <div>
-                      <dt>Assignment source</dt>
-                      <dd>{studentDetails.assignmentSource}</dd>
-                    </div>
-                  )}
-                </>
-              )}
-            </dl>
-
-            <section className="modal-section" aria-label="Roommate requests">
-              <h3>Roommate request wording</h3>
-              {studentDetails.requests.length === 0 ? (
-                <p className="muted">None on file for this contract.</p>
-              ) : (
-                <ul className="modal-list">
-                  {studentDetails.requests.map((r) => (
-                    <li key={r.requestId}>
-                      <span className="mono">“{r.rawText}”</span>
-                      <span className="muted">
-                        {' '}
-                        · {r.status}
-                        {r.exclusionReason ? ` · ${r.exclusionReason}` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="modal-section" aria-label="Restrictions">
-              <h3>Restrictions</h3>
-              {studentDetails.restrictions.length === 0 ? (
-                <p className="muted">None on file for this contract.</p>
-              ) : (
-                <ul className="modal-list">
-                  {studentDetails.restrictions.map((r) => (
-                    <li key={r.restrictionId}>
-                      <strong>{r.restrictionType}</strong>
-                      {r.value ? ` = ${r.value}` : ''}
-                      {r.description ? ` — ${r.description}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <p className="muted modal-hint">
-              Close with Escape or Close. Use Adjust in the side panel to move (click Move — no
-              drag-and-drop).
-            </p>
-          </div>
-        </div>
-      )}
     </main>
   )
 }
