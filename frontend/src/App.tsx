@@ -543,15 +543,27 @@ export default function App() {
     ? statusTagMeta(studentDetails.tenantType, studentDetails.stayPreference)
     : null
 
-  const selectedLabel = useMemo(() => {
+  const selectedInfo = useMemo(() => {
     if (!workspace || !selected) return null
     if (selected.kind === 'unassigned') {
       const u = workspace.unassigned.find((x) => x.contractId === selected.contractId)
-      return u ? displayName(u.firstName, u.lastName, u.tenantCode) : null
+      if (!u) return null
+      const name = `${u.firstName} ${u.lastName}`
+      return {
+        name,
+        meta: u.tenantCode,
+        title: displayName(u.firstName, u.lastName, u.tenantCode),
+      }
     }
     for (const a of workspace.apartments) {
       const o = a.occupants.find((x) => x.contractId === selected.contractId)
-      if (o) return `${displayName(o.firstName, o.lastName, o.tenantCode)} · apt ${a.apartmentNumber}`
+      if (!o) continue
+      const name = `${o.firstName} ${o.lastName}`
+      return {
+        name,
+        meta: `${o.tenantCode} · apt ${a.apartmentNumber}`,
+        title: `${displayName(o.firstName, o.lastName, o.tenantCode)} · apt ${a.apartmentNumber}`,
+      }
     }
     return null
   }, [workspace, selected])
@@ -577,7 +589,7 @@ export default function App() {
           .filter((o) => o.contractId !== selected.contractId)
           .map((o) => ({
             contractId: o.contractId,
-            label: `${displayName(o.firstName, o.lastName, o.tenantCode)} · ${a.apartmentNumber}`,
+            label: `${o.firstName} ${o.lastName} · ${a.apartmentNumber}`,
           })),
       )
       .sort((a, b) => a.label.localeCompare(b.label))
@@ -1368,15 +1380,18 @@ export default function App() {
                 {!selected && (
                   <p className="muted move-hint">Drag a student onto a highlighted apartment.</p>
                 )}
-                {selected && (
+                {selected && selectedInfo && (
                   <>
-                    <p className="selected-line">
-                      <span className="selected-name-block">
-                        <strong>{selectedLabel}</strong>
-                        {selectedStatus && (
-                          <span className={selectedStatus.className}>{selectedStatus.title}</span>
-                        )}
-                      </span>
+                    <div className="selected-line">
+                      <div className="selected-name-block" title={selectedInfo.title}>
+                        <strong className="selected-name">{selectedInfo.name}</strong>
+                        <span className="selected-meta-row">
+                          {selectedStatus && (
+                            <span className={selectedStatus.className}>{selectedStatus.title}</span>
+                          )}
+                          <span className="muted selected-meta">{selectedInfo.meta}</span>
+                        </span>
+                      </div>
                       <button
                         type="button"
                         className="details-btn"
@@ -1384,7 +1399,7 @@ export default function App() {
                       >
                         Details
                       </button>
-                    </p>
+                    </div>
                     <p className="muted move-hint">
                       Drag to move
                       {contractPlan(selected.contractId)
@@ -1427,40 +1442,42 @@ export default function App() {
                           })}
                         </select>
                       </label>
-                      <button
-                        type="button"
-                        disabled={!editable || busy || moveTarget === ''}
-                        onClick={() =>
-                          runMutation(() =>
-                            moveTenant(
-                              draftId as number,
-                              selected.contractId,
-                              moveTarget as number,
-                              operatorName(),
-                              changeReason.trim() || null,
-                            ),
-                          )
-                        }
-                      >
-                        Move
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!editable || busy || selected.kind !== 'assigned'}
-                        onClick={() =>
-                          runMutation(() =>
-                            moveTenant(
-                              draftId as number,
-                              selected.contractId,
-                              null,
-                              operatorName(),
-                              changeReason.trim() || null,
-                            ),
-                          )
-                        }
-                      >
-                        Unassign
-                      </button>
+                      <div className="action-row-actions">
+                        <button
+                          type="button"
+                          disabled={!editable || busy || moveTarget === ''}
+                          onClick={() =>
+                            runMutation(() =>
+                              moveTenant(
+                                draftId as number,
+                                selected.contractId,
+                                moveTarget as number,
+                                operatorName(),
+                                changeReason.trim() || null,
+                              ),
+                            )
+                          }
+                        >
+                          Move
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!editable || busy || selected.kind !== 'assigned'}
+                          onClick={() =>
+                            runMutation(() =>
+                              moveTenant(
+                                draftId as number,
+                                selected.contractId,
+                                null,
+                                operatorName(),
+                                changeReason.trim() || null,
+                              ),
+                            )
+                          }
+                        >
+                          Unassign
+                        </button>
+                      </div>
                     </div>
                     {selected.kind === 'assigned' && (
                       <details className="adjust-more">
@@ -1486,47 +1503,49 @@ export default function App() {
                               ))}
                             </select>
                           </label>
-                          <button
-                            type="button"
-                            disabled={!editable || busy || swapTarget === ''}
-                            onClick={() =>
-                              runMutation(() =>
-                                swapTenants(
-                                  draftId as number,
-                                  selected.contractId,
-                                  swapTarget as number,
-                                  operatorName(),
-                                  changeReason.trim() || null,
-                                ),
-                              )
-                            }
-                          >
-                            Swap
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!editable || busy}
-                            onClick={() => {
-                              const apt = workspace.apartments.find(
-                                (a) => a.apartmentId === selected.apartmentId,
-                              )
-                              const occ = apt?.occupants.find(
-                                (o) => o.contractId === selected.contractId,
-                              )
-                              const locked = !occ?.isLocked
-                              return runMutation(() =>
-                                setLock(
-                                  draftId as number,
-                                  selected.contractId,
-                                  locked,
-                                  operatorName(),
-                                  changeReason.trim() || null,
-                                ),
-                              )
-                            }}
-                          >
-                            Toggle lock
-                          </button>
+                          <div className="action-row-actions">
+                            <button
+                              type="button"
+                              disabled={!editable || busy || swapTarget === ''}
+                              onClick={() =>
+                                runMutation(() =>
+                                  swapTenants(
+                                    draftId as number,
+                                    selected.contractId,
+                                    swapTarget as number,
+                                    operatorName(),
+                                    changeReason.trim() || null,
+                                  ),
+                                )
+                              }
+                            >
+                              Swap
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!editable || busy}
+                              onClick={() => {
+                                const apt = workspace.apartments.find(
+                                  (a) => a.apartmentId === selected.apartmentId,
+                                )
+                                const occ = apt?.occupants.find(
+                                  (o) => o.contractId === selected.contractId,
+                                )
+                                const locked = !occ?.isLocked
+                                return runMutation(() =>
+                                  setLock(
+                                    draftId as number,
+                                    selected.contractId,
+                                    locked,
+                                    operatorName(),
+                                    changeReason.trim() || null,
+                                  ),
+                                )
+                              }}
+                            >
+                              Toggle lock
+                            </button>
+                          </div>
                         </div>
                       </details>
                     )}
@@ -1753,14 +1772,15 @@ export default function App() {
                     </div>
                     <button
                       type="button"
-                      className="modal-close"
+                      className="peek-close"
                       onClick={closeDetails}
+                      aria-label="Close"
+                      title="Close"
                       autoFocus
                     >
-                      Close
+                      <span aria-hidden="true">×</span>
                     </button>
                   </div>
-                  <p className="muted peek-return">Close returns to Waiting.</p>
                   <dl className="detail-grid">
                     <div>
                       <dt>Tenant code</dt>
@@ -1844,7 +1864,7 @@ export default function App() {
                   </section>
 
                   <p className="muted modal-hint">
-                    Escape or Close returns Waiting. Board stays open — use Adjust or drag to move.
+                    Escape returns Waiting. Board stays open — use Adjust or drag to move.
                   </p>
                 </section>
               ) : (
